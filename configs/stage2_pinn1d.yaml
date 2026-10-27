@@ -1,0 +1,20 @@
+# Stage 2b: 1-D PINN on the Merton PIDE (parameters in base.yaml).
+pinn:
+  width: 64
+  depth: 4
+  out_scale: 10.0
+  residual: log        # log | linear (ablation)
+  n_gh: 24
+  n_colloc: 4096
+  tail_share: 0.4      # 0 disables tail-adaptive sampling (ablation)
+  tail_level: 0.01
+  adapt_every: 250
+  w_pde: 1.0
+  w_ic: 10.0
+  w_norm: 10.0
+  w_bc: 1.0
+  steps: 20000
+  lr: 0.002
+  lr_min: 0.00002
+  log_every: 250
+  seed: 0

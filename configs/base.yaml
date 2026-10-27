@@ -1,0 +1,18 @@
+# Shared ground-truth setup for Phase 1 (1-D). Time in years, 252 trading days.
+merton:            # an equity index with a crash component
+  a: 0.05          # drift of log return
+  sigma: 0.20      # diffusion vol (20% annual)
+  lam: 5.0         # 5 jumps per year on average
+  mu_j: -0.05      # mean jump -5%
+  sigma_j: 0.07    # jump size std 7%
+
+domain:
+  x_min: -0.60     # log-return range covered by the solvers
+  x_max: 0.30
+  t0_days: 0.5     # start time (avoids the Dirac delta at t = 0)
+  T_days: 10.0     # longest horizon (FRTB 10-day)
+
+eval:
+  horizons_days: [1, 5, 10]
+  alphas: [0.95, 0.975, 0.99, 0.995]
+  nx: 4001

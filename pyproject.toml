@@ -1,0 +1,16 @@
+[project]
+name = "pinn-tailrisk"
+version = "0.1.0"
+description = "Physics-informed neural networks for financial tail-risk (VaR/ES) estimation"
+requires-python = ">=3.10"
+dependencies = ["numpy", "scipy", "pandas", "matplotlib", "pyyaml", "tqdm", "torch", "arch", "yfinance"]
+
+[project.optional-dependencies]
+dev = ["pytest", "jupyterlab", "ipykernel"]
+
+[tool.setuptools]
+packages = ["pinn_tailrisk"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
