@@ -1,0 +1,32 @@
+# Notebooks (Google Colab, phase-wise)
+
+Each notebook runs one stage of [`PLAN.md`](../PLAN.md) in Colab. Click a badge, switch to a **T4 GPU**
+(Runtime → Change runtime type), and run the setup cell first.
+
+| # | Phase | Stage | Notebook | Status |
+|---|---|---|---|---|
+| 00 | all | setup + tests | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aditya-siraskar/PINN_FTRE/blob/main/notebooks/00_setup_and_tests.ipynb) `00_setup_and_tests` | ready |
+| 01 | 1 · validation | 2a ground truth (exact / FD / MC) | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aditya-siraskar/PINN_FTRE/blob/main/notebooks/01_phase1_stage2a_reference.ipynb) `01_phase1_stage2a_reference` | ready |
+| 02 | 1 · validation | 2b 1-D PINN | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aditya-siraskar/PINN_FTRE/blob/main/notebooks/02_phase1_stage2b_pinn1d.ipynb) `02_phase1_stage2b_pinn1d` | ready |
+| 03 | 1 · validation | 2c ablations | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aditya-siraskar/PINN_FTRE/blob/main/notebooks/03_phase1_stage2c_ablations.ipynb) `03_phase1_stage2c_ablations` | ready |
+| 04 | 2 · multi-asset | 3 multi-asset ground truth | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aditya-siraskar/PINN_FTRE/blob/main/notebooks/04_phase2_stage3_multiasset_reference.ipynb) `04_phase2_stage3_multiasset_reference` | preview + plan |
+| 05 | 2 · multi-asset | 4 d-dim PINN, scaling | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aditya-siraskar/PINN_FTRE/blob/main/notebooks/05_phase2_stage4_pinn_nd.ipynb) `05_phase2_stage4_pinn_nd` | plan |
+| 06 | 3 · real-time | 5 amortised, latency (headline) | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aditya-siraskar/PINN_FTRE/blob/main/notebooks/06_phase3_stage5_realtime_amortised.ipynb) `06_phase3_stage5_realtime_amortised` | plan |
+| 07 | 4 · empirical | 6 real data, backtests | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aditya-siraskar/PINN_FTRE/blob/main/notebooks/07_phase4_stage6_real_data.ipynb) `07_phase4_stage6_real_data` | data preview + plan |
+| 08 | 4 · empirical | 7 physics vs data, release | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aditya-siraskar/PINN_FTRE/blob/main/notebooks/08_phase4_stage7_ablation_release.ipynb) `08_phase4_stage7_ablation_release` | plan |
+
+Run order: 00 → 01 → 02 → 03, then the later stages as they are built.
+
+## How the notebooks work
+- **Setup cell:** mounts Google Drive and clones the repo to `MyDrive/PINN_FTRE` (or `git pull` if it is already there), then runs `pip install -e .`. Figures (`figures/`) and results (`results/`) are written inside that folder, so they **survive Colab disconnects**. Set `USE_DRIVE = False` for a throwaway run.
+- **Logic stays in the library.** Notebooks call `scripts/*.py` and `pinn_tailrisk/`, then show the figures with `show_figures(stage)` next to a pass/fail checklist. To change the method, edit the library, not the notebook.
+- **Planned stages (04–08)** carry the stage spec, the planned figures and, where possible, a live preview built on what the library already supports.
+
+## Syncing Colab results back to GitHub
+Colab edits the Drive copy. To push from it, run in a cell:
+```
+!git -C "/content/drive/MyDrive/PINN_FTRE" add figures results/**/*.json results/**/*.csv
+!git -C "/content/drive/MyDrive/PINN_FTRE" commit -m "Stage X results"
+!git -C "/content/drive/MyDrive/PINN_FTRE" push https://<GITHUB_TOKEN>@github.com/aditya-siraskar/PINN_FTRE main
+```
+Use a GitHub personal access token, stored with Colab's 🔑 Secrets panel, never pasted into the notebook. Or download the `figures/` folder from Drive and commit it on your laptop.
