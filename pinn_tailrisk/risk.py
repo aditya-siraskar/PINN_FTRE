@@ -44,6 +44,23 @@ def var_es_from_samples(x: np.ndarray, alpha: float):
     return -q, -x[x <= q].mean()
 
 
+def var_es_from_weighted(z: np.ndarray, w: np.ndarray, alpha: float):
+    """VaR/ES of a discrete distribution: values z with probability weights w (renormalised).
+
+    Used for a portfolio return z = w . x read off a d-dimensional density grid
+    (weights = p * cell volume). The cell holding the quantile is split exactly.
+    """
+    z, w = np.ravel(z), np.clip(np.ravel(w), 0.0, None)
+    order = np.argsort(z)
+    z, w = z[order], w[order] / w.sum()
+    tail = 1.0 - alpha
+    c = np.cumsum(w)
+    k = int(np.searchsorted(c, tail))
+    taken = tail - (c[k - 1] if k > 0 else 0.0)
+    es = -(np.dot(z[:k], w[:k]) + taken * z[k]) / tail
+    return -z[k], es
+
+
 def gaussian_var_es(mean: float, std: float, alpha: float):
     z = stats.norm.ppf(1.0 - alpha)
     return -(mean + std * z), -(mean - std * stats.norm.pdf(z) / (1.0 - alpha))

@@ -24,6 +24,7 @@ STAGE = "stage2_reference"
 cfg = load_config("configs/base.yaml")
 p = MertonParams(**cfg["merton"])
 dom = cfg["domain"]
+fdd = cfg["fd_domain"]
 t0, T = dom["t0_days"] * DAY, dom["T_days"] * DAY
 H = cfg["eval"]["horizons_days"]
 ALPHAS = cfg["eval"]["alphas"]
@@ -59,8 +60,8 @@ fig.tight_layout()
 P.savefig(fig, STAGE, "fig01_target_density")
 
 # ---------------------------------------------------------------- fig02: FD and MC agree with exact
-nx_fd, dt_fd = 2401, 0.02 * DAY
-xf, sol, fd_time = solve_pide_1d(p, dom["x_min"], dom["x_max"], nx_fd, t0, [h * DAY for h in H], dt_fd)
+nx_fd, dt_fd = fdd["nx"], 0.02 * DAY
+xf, sol, fd_time = solve_pide_1d(p, fdd["x_min"], fdd["x_max"], nx_fd, t0, [h * DAY for h in H], dt_fd)
 mc = simulate_merton(2_000_000, T, p, rng)
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.4))
 ax = axes[0]
@@ -82,14 +83,15 @@ for hh, c in zip(H, horizon_colors):
     m = ex > 1e-6
     ax.plot(pct(xf[m]), np.abs(np.log10(np.clip(sol[hh * DAY][m], 1e-300, None)) - np.log10(ex[m])),
             color=c, lw=1.4, label=f"{hh}-day")
-ax.set(yscale="log", xlim=(-50, 20), xlabel="log return (%)",
+ax.set(yscale="log", xlim=(-50, 20), ylim=(1e-10, 1e-2), xlabel="log return (%)",
        ylabel=r"$|\log_{10}p_{FD} - \log_{10}p|$", title="Finite-difference error where p > 1e-6")
 ax.legend(title="horizon", title_fontsize=8.5)
 P.panel_labels(axes)
 fig.tight_layout()
 P.savefig(fig, STAGE, "fig02_fd_mc_validation")
 
-metrics["fd_reference"] = dict(nx=nx_fd, dt_days=0.02, wall_s=fd_time, var_es={})
+metrics["fd_reference"] = dict(nx=nx_fd, dt_days=0.02, x_min=fdd["x_min"], x_max=fdd["x_max"],
+                               wall_s=fd_time, var_es={})
 for hh in H:
     row = {}
     for a in ALPHAS:
@@ -100,17 +102,17 @@ for hh in H:
 
 # ---------------------------------------------------------------- fig03: FD convergence
 def fd_errors(nx, dt):
-    xg, s, wall = solve_pide_1d(p, dom["x_min"], dom["x_max"], nx, t0, [T], dt)
+    xg, s, wall = solve_pide_1d(p, fdd["x_min"], fdd["x_max"], nx, t0, [T], dt)
     l1 = np.trapezoid(np.abs(s[T] - merton_pdf(xg, T, p)), xg)
     v, e = var_es_from_pdf(xg, s[T], 0.99)
     vt, et = merton_var_es(0.99, T, p)
     return l1, abs(e - et) / et, wall
 
-nxs = [151, 301, 601, 1201, 2401]
+nxs = [251, 501, 1001, 2001, 4001]
 dx_rows = [fd_errors(n, 0.005 * DAY) for n in nxs]
 dts = [1.0, 0.5, 0.25, 0.125, 0.0625]
-dt_rows = [fd_errors(4801, d * DAY) for d in dts]
-dxv = [(dom["x_max"] - dom["x_min"]) / (n - 1) for n in nxs]
+dt_rows = [fd_errors(8001, d * DAY) for d in dts]
+dxv = [(fdd["x_max"] - fdd["x_min"]) / (n - 1) for n in nxs]
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.4))
 for ax, xs, rows, xl, title in [(axes[0], np.array(dxv) * 100, dx_rows, r"grid step $\Delta x$ (%)", "Space refinement"),
                                 (axes[1], np.array(dts), dt_rows, r"time step $\Delta t$ (days)", "Time refinement")]:
@@ -144,10 +146,12 @@ for ax, hh in zip(axes, [1, 10]):
         ax.axvline(a * 100, color=P.AXIS, lw=0.8, zorder=0)
     ax.set(xlabel=r"confidence level $\alpha$ (%)", title=f"{hh}-day horizon")
     i = np.argmin(np.abs(al - 0.99))
-    gap = (ve[i, 1] - vg[i, 1]) / ve[i, 1] * 100
-    ax.annotate(f"Gaussian ES$_{{99}}$ is\n{gap:.0f}% too low", xy=(99, pct(vg[i, 1])),
-                xytext=(92, pct(ve[-1, 1]) * 0.8), fontsize=8.5, color=P.INK_2,
-                arrowprops=dict(arrowstyle="-", color=P.MUTED, lw=0.8))
+    e_true, e_gauss = pct(ve[i, 1]), pct(vg[i, 1])
+    gap = (e_true - e_gauss) / e_true * 100
+    ax.annotate("", xy=(99, e_gauss), xytext=(99, e_true),
+                arrowprops=dict(arrowstyle="<->", color=P.INK_2, lw=1, shrinkA=0, shrinkB=0))
+    ax.text(98.8, e_true + 0.6, f"Gaussian ES$_{{99}}$\n{gap:.0f}% too low",
+            ha="right", va="bottom", fontsize=8.5, color=P.INK_2)
 axes[0].set_ylabel("loss (% of portfolio)")
 axes[0].legend(loc="upper left")
 P.panel_labels(axes)
@@ -179,7 +183,7 @@ ax = axes[1]
 ax.loglog(ns, np.array(wall) * 1e3, marker="^", **P.style("mc", label="Monte Carlo"))
 ax.axhline(fd_time * 1e3, **P.style("fd", label=f"FD, full density ({fd_time*1e3:.0f} ms)"))
 ax.set(xlabel="Monte Carlo paths N", ylabel="wall time per estimate (ms)", title="…and the cost grows linearly")
-ax.legend(loc="upper left")
+ax.legend(loc="lower right")
 P.panel_labels(axes)
 fig.tight_layout()
 P.savefig(fig, STAGE, "fig05_mc_cost")

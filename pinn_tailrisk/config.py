@@ -26,11 +26,16 @@ def git_hash() -> str:
 
 def save_results(stage: str, name: str, payload: dict) -> Path:
     """results/<stage>/<name>.json, stamped with git hash and machine info."""
-    import torch
     out = RESULTS / stage
     out.mkdir(parents=True, exist_ok=True)
-    meta = dict(git=git_hash(), python=platform.python_version(), torch=torch.__version__,
-                device=torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu")
+    meta = dict(git=git_hash(), python=platform.python_version(), torch=None, device="cpu",
+                cpu=platform.processor())
+    try:  # reference stages run without torch
+        import torch
+        meta.update(torch=torch.__version__,
+                    device=torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu")
+    except ImportError:
+        pass
     path = out / f"{name}.json"
     path.write_text(json.dumps(dict(meta=meta, **payload), indent=2, default=float))
     return path

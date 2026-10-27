@@ -1,0 +1,22 @@
+# Stage 3: multi-asset ground truth. Jump parameters and t0/T come from base.yaml.
+two_asset:
+  sigma: [0.20, 0.25]     # diffusion vols
+  rho: 0.5                # diffusion correlation
+  beta: [1.0, 1.2]        # loadings on the common jump (asset 2 crashes harder)
+  weights: [0.5, 0.5]     # reference portfolio
+
+fd2d:
+  x_min: -1.00            # same wide-domain lesson as 1-D
+  x_max: 0.45
+  n: 401                  # points per axis for the reference solution
+  dt_days: 0.0125         # explicit jump/mixed terms are first order; ES error 5e-6 at this step
+  n_list: [101, 151, 201, 301, 401]
+
+scaling:                  # d-asset family used for Monte Carlo vs dimension
+  d_list: [1, 2, 3, 5, 10, 20]
+  sigma_range: [0.18, 0.30]   # vols spread linearly over the assets
+  beta_range: [0.8, 1.2]
+  rho: 0.4
+  mc_paths: 100000
+  mc_reps: 100
+  grid_points_per_axis: 400   # for the memory projection n^d

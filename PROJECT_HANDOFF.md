@@ -7,6 +7,21 @@
 
 ---
 
+## Status update (2026-10-28): supersedes §0, §5.1 and §7 where they differ
+
+- Stage 2 has run on Colab (T4). FD/MC match exact (FD ES error ≤ 2e-4). PINN with 24 jump nodes reached 0.18% ES₉₉ at 10 d but 1.8% at 1 d.
+  **The default is now `n_gh = 48`** (max VaR/ES error 0.61%, 1-day ES₉₉ 0.30%; training 8.9 min on a T4).
+- Ablation findings (single seed, being repeated with 3 seeds in notebook 03):
+  - the log-form residual is essential (linear: 20–225% ES errors);
+  - jump-quadrature resolution is the short-horizon bottleneck (8 → 24 → 48 nodes: 12% → 1.8% → 0.3%);
+  - the normalisation penalty is needed;
+  - tail-adaptive sampling is inconclusive;
+  - 1-day VaR₉₉ is ill-conditioned (the quantile sits in the density gap between the diffusion peak and the jump hump).
+- The FD *reference* now runs on a wider `fd_domain` [−1.0, 0.5] (base.yaml). Its p = 0 edges on [−0.6, 0.3] had distorted the far tail (fake FD tail error 0.4) and set an ES floor of 1e-4.
+- Stage 3 is built: `fd2d.py` (Douglas ADI + FFT line-kernel jumps), `scripts/stage3_multiasset_reference.py`, notebook 04.
+- Notebooks are generated from `tools/make_notebooks.py`. Edit that file, then run `python tools/make_notebooks.py`.
+- Next: rerun notebooks 01–04 on Colab, then Stage 4 (multi-asset PINN).
+
 ## 0. TL;DR for whoever picks this up
 
 1. The research direction is fixed: Phase 1 (validated 1-D study), then the headline, **real-time multi-asset VaR/ES with an amortised PINN**. See §2.

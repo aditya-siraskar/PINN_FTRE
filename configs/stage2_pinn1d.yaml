@@ -4,7 +4,7 @@ pinn:
   depth: 4
   out_scale: 10.0
   residual: log        # log | linear (ablation)
-  n_gh: 24
+  n_gh: 48             # 24 -> 48 after the Stage 2c ablation (1-day ES99 error 1.8% -> 0.3%)
   n_colloc: 4096
   tail_share: 0.4      # 0 disables tail-adaptive sampling (ablation)
   tail_level: 0.01

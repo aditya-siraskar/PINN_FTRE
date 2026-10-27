@@ -12,6 +12,11 @@ domain:
   t0_days: 0.5     # start time (avoids the Dirac delta at t = 0)
   T_days: 10.0     # longest horizon (FRTB 10-day)
 
+fd_domain:         # wider domain for the FD *reference*: its p = 0 edges otherwise distort
+  x_min: -1.00     # the far tail (ES99 error 1e-4 -> 2e-7, tail log-error 0.66 -> 8e-6)
+  x_max: 0.50
+  nx: 4001         # same grid step as 2401 points on [-0.6, 0.3]
+
 eval:
   horizons_days: [1, 5, 10]
   alphas: [0.95, 0.975, 0.99, 0.995]

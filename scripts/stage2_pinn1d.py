@@ -16,6 +16,7 @@ import pandas as pd
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from pinn_tailrisk import figs_pinn1d as F  # noqa: E402
 from pinn_tailrisk import plotting as P  # noqa: E402
 from pinn_tailrisk.config import RESULTS, load_config, save_results  # noqa: E402
 from pinn_tailrisk.fd import solve_pide_1d  # noqa: E402
@@ -27,6 +28,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--config", default="configs/stage2_pinn1d.yaml")
 ap.add_argument("--steps", type=int)
 ap.add_argument("--tag", default="")
+ap.add_argument("--seed", type=int)
 args = ap.parse_args()
 
 STAGE = "stage2_pinn1d" + (f"_{args.tag}" if args.tag else "")
@@ -34,6 +36,8 @@ base = load_config("configs/base.yaml")
 pc = load_config(args.config)["pinn"]
 if args.steps:
     pc["steps"] = args.steps
+if args.seed is not None:
+    pc["seed"] = args.seed
 cfg = PINNConfig(**pc)
 p = MertonParams(**base["merton"])
 dom = base["domain"]
@@ -42,7 +46,6 @@ H, ALPHAS = base["eval"]["horizons_days"], base["eval"]["alphas"]
 x = np.linspace(dom["x_min"], dom["x_max"], base["eval"]["nx"])
 P.use_style()
 pct = lambda v: v * 100  # noqa: E731
-horizon_colors = [P.SEQ_BLUE(v) for v in (0.35, 0.65, 0.95)]
 exact_es = {h: merton_var_es(0.99, h * DAY, p)[1] for h in (1, 10)}
 
 
@@ -64,7 +67,9 @@ hist.to_csv(RESULTS / STAGE / "history.csv", index=False)
 torch.save(dict(state=tr.model.state_dict(), cfg=pc, params=p.as_dict(), domain=dom), RESULTS / STAGE / "model.pt")
 
 # ---------------------------------------------------------------- evaluation
-xf, fd_sol, fd_time = solve_pide_1d(p, dom["x_min"], dom["x_max"], 2401, t0, [h * DAY for h in H], 0.02 * DAY)
+# FD reference on its wider domain, so its p = 0 edges do not distort the far tail
+fdd = base["fd_domain"]
+xf, fd_sol, fd_time = solve_pide_1d(p, fdd["x_min"], fdd["x_max"], fdd["nx"], t0, [h * DAY for h in H], 0.02 * DAY)
 torch.cuda.synchronize() if torch.cuda.is_available() else None
 tic = time.perf_counter()
 for h in H:
@@ -98,23 +103,7 @@ for m in ("pinn", "fd"):
 risk.to_csv(RESULTS / STAGE / "risk_table.csv", index=False)
 
 # ---------------------------------------------------------------- fig01: training dynamics
-fig, axes = plt.subplots(1, 2, figsize=(10, 3.4))
-ax = axes[0]
-for k, c, lab in [("pde", P.VIOLET, "PIDE residual"), ("ic", P.MAGENTA, "initial condition"),
-                  ("norm", P.GREEN, "normalisation"), ("bc", P.YELLOW, "boundary decay")]:
-    ax.semilogy(hist.step, hist[k].clip(lower=1e-12), color=c, lw=1.5, label=lab)
-ax.set(xlabel="training step", ylabel="loss term", title="Loss components")
-ax.legend(ncol=2, loc="upper right")
-ax = axes[1]
-for h, c in [(1, horizon_colors[0]), (10, horizon_colors[2])]:
-    ax.semilogy(hist.step, hist[f"es99_rel_{h}d"], color=c, lw=1.5, label=f"{h}-day")
-ax.axhline(0.01, color=P.AXIS, lw=0.8)
-ax.text(hist.step.iloc[-1], 0.0105, "1%", ha="right", va="bottom", fontsize=8, color=P.INK_2)
-ax.set(xlabel="training step", ylabel="ES$_{99}$ relative error", title="Tail accuracy during training")
-ax.legend(title="horizon", title_fontsize=8.5)
-P.panel_labels(axes)
-fig.tight_layout()
-P.savefig(fig, STAGE, "fig01_training")
+F.plot_training(hist, STAGE)
 
 # ---------------------------------------------------------------- fig02: densities
 fig, axes = plt.subplots(1, 3, figsize=(11.5, 3.4), sharey=True)
@@ -161,42 +150,10 @@ fig.tight_layout()
 P.savefig(fig, STAGE, "fig03_error_map")
 
 # ---------------------------------------------------------------- fig04: bulk vs tail (RQ1)
-fig, axes = plt.subplots(1, 2, figsize=(10, 3.2))
-xi = np.arange(len(H))
-wbar = 0.36
-for ax, (kp, kf, ylab, title) in zip(axes, [
-        ("bulk_rel_l1", "fd_bulk_rel_l1", r"relative $L^1$ error", "Bulk (1%–99% quantiles)"),
-        ("left_tail_mae_log", "fd_left_tail_mae_log", "mean |log-density error|", "Left tail (worst 1%)")]):
-    vp = [dens_err[h][kp] for h in H]
-    vf = [dens_err[h][kf] for h in H]
-    b1 = ax.bar(xi - wbar / 2 - 0.01, vp, wbar, color=P.METHOD["pinn"]["color"], label="PINN")
-    b2 = ax.bar(xi + wbar / 2 + 0.01, vf, wbar, color=P.METHOD["fd"]["color"], label="Finite difference")
-    for b in (*b1, *b2):
-        ax.text(b.get_x() + b.get_width() / 2, b.get_height(), f"{b.get_height():.1e}",
-                ha="center", va="bottom", fontsize=7.5, color=P.INK_2)
-    ax.set(xticks=xi, xticklabels=[f"{h}-day" for h in H], ylabel=ylab, title=title, yscale="log")
-    ax.grid(axis="x", visible=False)
-axes[0].legend(loc="upper left")
-P.panel_labels(axes)
-fig.tight_layout()
-P.savefig(fig, STAGE, "fig04_bulk_vs_tail")
+F.plot_bulk_vs_tail(dens_err, H, STAGE)
 
 # ---------------------------------------------------------------- fig05: VaR/ES errors (RQ2, controlled)
-fig, axes = plt.subplots(1, 2, figsize=(10, 3.4), sharey=True)
-for ax, meas in zip(axes, ["var", "es"]):
-    for m, off in [("pinn", -0.12), ("fd", 0.12)]:
-        for j, h in enumerate(H):
-            r = risk[risk.h == h]
-            ax.plot(np.arange(len(ALPHAS)) + off + (j - 1) * 0.03, 100 * r[f"{meas}_rel_{m}"].abs(),
-                    marker=P.METHOD[m]["marker"], lw=0, ms=6, color=P.METHOD[m]["color"],
-                    alpha=[0.55, 0.8, 1.0][j], label=f"{P.METHOD[m]['label']}" if j == 2 else None)
-    ax.set(xticks=range(len(ALPHAS)), xticklabels=[f"{a*100:g}%" for a in ALPHAS], yscale="log",
-           xlabel=r"confidence level $\alpha$", title=f"{meas.upper()} relative error (all horizons)")
-axes[0].set_ylabel("|error| vs exact (%)")
-axes[0].legend(loc="upper left")
-P.panel_labels(axes)
-fig.tight_layout()
-P.savefig(fig, STAGE, "fig05_var_es_error")
+F.plot_var_es_error(risk, H, ALPHAS, STAGE)
 
 save_results(STAGE, "metrics", dict(
     pinn_config=pc, params=p.as_dict(), domain=dom,

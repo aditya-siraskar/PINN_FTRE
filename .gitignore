@@ -5,3 +5,5 @@ __pycache__/
 .pytest_cache/
 results/**/*.pt
 data/raw/
+pinn_tailrisk.egg-info/
+configs/ablations/

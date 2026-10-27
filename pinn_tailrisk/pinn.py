@@ -39,7 +39,7 @@ class PINNConfig:
     depth: int = 4
     out_scale: float = 10.0
     residual: str = "log"            # "log" | "linear"
-    n_gh: int = 24                   # Gauss-Hermite nodes for the jump integral
+    n_gh: int = 48                   # Gauss-Hermite nodes for the jump integral (24 is too few at 1 day)
     n_colloc: int = 4096
     tail_share: float = 0.4          # share of collocation points near the tail quantile
     tail_level: float = 0.01
