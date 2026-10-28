@@ -1,0 +1,120 @@
+% Literature review. \citeneeded{...} marks claims whose reference the team still has to add
+% (they render in red, so none can slip into the submitted version).
+\chapter{Literature review}
+\label{ch:literature}
+
+This chapter reviews the four bodies of work the thesis connects: tail-risk measures and their estimation
+(\cref{sec:lit-risk}), jump-diffusion models and their numerical solution (\cref{sec:lit-jumps}),
+physics-informed and other neural PDE solvers (\cref{sec:lit-pinn}), and their use in finance
+(\cref{sec:lit-pinnfin}). \Cref{sec:lit-gap} states the gap.
+
+% ------------------------------------------------------------------------------------------------
+\section{Tail-risk measures and their estimation}
+\label{sec:lit-risk}
+
+\paragraph{VaR and ES.} Value at Risk became the industry standard in the 1990s \citep{jorion2007}. It is a
+quantile, and therefore says nothing about the size of losses beyond it; it is also not subadditive, so the VaR of
+a portfolio can exceed the sum of its parts. \Citet{artzner1999} defined the axioms of coherent risk measures, and
+\citet{acerbi2002} showed that Expected Shortfall satisfies them. The Basel Committee's Fundamental Review of the
+Trading Book replaced 99\% VaR with 97.5\% ES for market-risk capital \citep{bcbs2019}.
+
+\paragraph{Estimation methods.} Four families dominate practice.
+\begin{itemize}
+  \item \textbf{Parametric} models assume a distribution, usually Gaussian or Student-$t$, with volatility from an
+    EWMA filter \citep{riskmetrics1996} or a GARCH model \citep{bollerslev1986}. Multivariate versions model
+    correlations, for example with dynamic conditional correlation \citep{engle2002}.
+  \item \textbf{Historical simulation} uses the empirical distribution of past returns. It makes no distributional
+    assumption but reacts slowly to changes in volatility. Filtered historical simulation rescales past returns by
+    the ratio of current to past volatility \citep{barone1999}, and is a strong benchmark in comparative studies
+    \citeneeded{Bank of England study of filtered-HS VaR, cited in Review 2}.
+  \item \textbf{Extreme value theory} fits a generalised Pareto distribution to the tail. \Citet{mcneil2000}
+    combine it with GARCH filtering, applying EVT to the standardised residuals.
+  \item \textbf{Monte Carlo} simulation from a fitted model handles any model and any portfolio, including
+    options, at a cost that grows with the precision required in the tail \citep{glasserman2003}.
+\end{itemize}
+
+\paragraph{Backtesting.} \Citet{kupiec1995} tests whether the frequency of VaR breaches matches the nominal
+level, and \citet{christoffersen1998} adds a test that breaches are independent over time. Neither evaluates ES.
+ES is not elicitable on its own \citep{gneiting2011}, which long made it hard to backtest, but the pair (VaR, ES)
+is jointly elicitable \citep{fissler2016}. This gives strictly consistent scoring functions such as the FZ0 loss
+of \citet{patton2019}, with which competing forecasts can be ranked, and their differences tested with the
+Diebold--Mariano test \citep{diebold1995} using a Newey--West variance \citep{newey1987}.
+
+% ------------------------------------------------------------------------------------------------
+\section{Jump-diffusion models}
+\label{sec:lit-jumps}
+
+Returns exhibit fat tails, volatility clustering and occasional discontinuities \citep{mandelbrot1963,cont2001}.
+\Citet{merton1976} added a compound Poisson process with Gaussian jump sizes to the Black--Scholes diffusion; the
+density is then a Poisson mixture of Gaussians, available in closed form. \Citet{kou2002} uses double-exponential
+jumps, which give a heavier tail and analytical tractability for path-dependent options. \Citet{cont2004} give a
+comprehensive treatment of jump processes in finance, including their generators and the integro-differential
+equations they lead to.
+
+The density of a jump-diffusion solves a forward PIDE, the Fokker--Planck equation with an added nonlocal jump
+term. It is usually solved by finite differences, treating the local terms implicitly and the jump integral
+explicitly, with the convolution computed by FFT \citep{andersen2000,cont2004}. These schemes are accurate and fast
+in one dimension, but as with every grid method their cost grows as $n^d$ in $d$ dimensions, which limits them to
+two or three assets.
+
+% ------------------------------------------------------------------------------------------------
+\section{Neural solvers for PDEs}
+\label{sec:lit-pinn}
+
+\paragraph{Physics-informed neural networks.} The idea of training a network to satisfy a differential equation
+goes back to \citet{lagaris1998}. \Citet{raissi2019} gave it its current form: a network approximates the solution,
+automatic differentiation evaluates the PDE residual at sampled collocation points, and the loss combines the
+residual with initial and boundary conditions. PINNs are mesh-free, handle forward and inverse problems in the
+same framework and can take parameters as inputs \citep{karniadakis2021}.
+
+\paragraph{Known difficulties.} PINN training is fragile. Loss terms can have very different gradient magnitudes,
+which unbalances training \citep{wang2021}, and some problems are not learned at all because of the optimisation
+landscape rather than the network's capacity \citep{krishnapriyan2021}. Two difficulties are specific to densities:
+a density spans many orders of magnitude, so a residual on $p$ ignores the tail, and the PDE is unchanged by
+scaling $p$, so normalisation must be imposed separately.
+
+\paragraph{Fokker--Planck equations.} PINNs have been applied to forward and inverse Fokker--Planck problems
+\citep{chen2021fp}, mostly with continuous (diffusive) dynamics. Nonlocal jump terms, which make the equation a
+PIDE, are less studied.
+
+\paragraph{High dimensions.} Deep BSDE methods \citep{han2018} and the deep Galerkin method
+\citep{sirignano2018} solve PDEs in hundreds of dimensions, typically for a value at one point or for a smooth
+solution, not for a density across its tail. In PINNs the cost of second derivatives grows with $d$; Hutchinson's
+stochastic trace estimator \citep{hutchinson1989} replaces the full Laplacian by random projections, and has been
+used to scale PINNs to high dimensions \citep{hu2024}.
+
+\paragraph{Neural operators and density models.} Neural operators such as DeepONet \citep{lu2021} and the Fourier
+neural operator \citep{li2021} learn a map from parameters or initial conditions to solutions, from many solved
+examples. The amortised PINN of this thesis targets the same goal, one network for a family of problems, but is
+trained from the equation alone, without solved examples. Data-driven density estimators such as normalising
+flows \citep{papamakarios2021} learn densities from samples alone; the data-only baseline of this thesis is the
+simplest such model, built from the same network as the PINN so that the comparison isolates the physics.
+
+% ------------------------------------------------------------------------------------------------
+\section{Neural networks for finance}
+\label{sec:lit-pinnfin}
+
+Option pricing has been the main financial application of neural PDE solvers: the deep Galerkin method was
+demonstrated on American options \citep{sirignano2018}, deep BSDE methods on high-dimensional pricing
+\citep{han2018}, and PINNs on the Black--Scholes equation and on jump-diffusion pricing PIDEs
+\citeneeded{PINN option pricing, incl.\ jump-diffusion, cited in Review 2}. These works solve the backward
+pricing equation for a price, a smooth function whose accuracy is judged in the bulk. Tail-risk work with neural
+networks has mostly been data-driven, using networks to forecast VaR or ES directly from past returns
+\citeneeded{neural VaR/ES forecasting, e.g.\ quantile-regression networks}.
+
+% ------------------------------------------------------------------------------------------------
+\section{Research gap}
+\label{sec:lit-gap}
+
+Applying a PINN to a financial equation is no longer new. What the literature does not provide is a systematic
+test of whether PINN-solved \emph{densities} give accurate and useful \emph{tail risk}. Such a test requires:
+\begin{itemize}
+  \item tail accuracy measured separately from bulk accuracy, against an exact reference;
+  \item VaR and ES compared with both numerical solvers (finite differences, Monte Carlo) and the statistical risk
+    models used in practice (historical simulation, GARCH, EVT), including joint VaR--ES scoring;
+  \item the multi-asset case, where grid solvers cannot be used and a neural solver could add value;
+  \item an honest accounting of training cost and query latency against Monte Carlo;
+  \item a direct measurement of what the physics contributes over the same network trained on data, and an
+    account of where the method fails.
+\end{itemize}
+This thesis provides that test, for jump-diffusion models with up to five assets and on two real equity baskets.

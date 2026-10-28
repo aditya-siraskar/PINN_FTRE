@@ -1,0 +1,83 @@
+\chapter{Conclusion}
+\label{ch:conclusion}
+
+\section{Summary}
+This thesis tested whether physics-informed neural networks give accurate and useful tail-risk estimates under
+jump-diffusion dynamics, against an exact reference at every step. The answer depends on the setting, and the
+study can say where the PINN helps and where it does not.
+
+In one dimension a carefully designed PINN learns the density and its tail to within 1\% in VaR and ES at every
+level tested. The design matters more than the network: writing the residual for the log density, resolving the
+jump integral with enough quadrature nodes and penalising the normalisation each change the tail error by an order
+of magnitude, while tail-adaptive sampling does not help. In one dimension, however, finite differences are faster
+and far more accurate, so the 1-D study validates the method rather than motivating it.
+
+The method carries over to several assets without a grid. Collocation, normalisation and risk all use one proposal
+built from the equation's coefficients, and the Laplacian can be estimated stochastically. With one architecture and
+training budget the ES error stays near 1\% up to five assets, with training time almost independent of the
+dimension, in a regime where finite differences are already impractical. At ten assets the method breaks.
+
+An amortised network that takes the volatility level, jump intensity and jump mean as inputs covers a whole range of
+market states with one training run and provides risk contributions and scenario curves by differentiation. For the
+Merton model, though, Monte Carlo is faster at matched error, because exact simulation is cheap; the PINN does not pay
+back its training cost in latency.
+
+On real data the PINN reproduces its jump-diffusion model closely, with daily ES within 0.2--2.8\% of the exact model
+and identical breaches. Its backtest performance is therefore that of the model: better than Gaussian, historical
+simulation and unfiltered jump-diffusion forecasts, conservative at 97.5\%, and behind the best volatility-filtered
+models (filtered historical simulation, DCC, GARCH-$t$, EVT).
+
+The physics is worth a great deal of data. Trained on no samples, the PINN matches a network of identical design
+trained on $10^5$ to $10^6$ exact samples; with the few thousand observations available in practice, the data-only
+network is 5--60\% off.
+
+\section{Answers to the research questions}
+\begin{description}
+  \item[RQ1.] With the log-form residual the tail is learned as accurately as the bulk for up to five assets. The tail
+    is where the method fails first: in ten dimensions, for a very sharp initial density, and outside the region
+    covered by training points.
+  \item[RQ2.] Against exact values, ES errors are about 1\% up to five assets. On real data the PINN is a faithful
+    surrogate of its model, and calibration is determined by the model, not by the network.
+  \item[RQ3.] The equation replaces $10^5$--$10^6$ exact samples.
+  \item[RQ4.] The method scales to five assets at roughly constant cost and accuracy and breaks at ten with the
+    architecture and budget used here.
+  \item[RQ5.] One network answers queries over a parameter box in milliseconds, but for the Merton model Monte Carlo
+    is faster at equal error, and there is no break-even.
+\end{description}
+
+\section{Practical implications}
+\begin{itemize}
+  \item A PINN is worth using when the model is expensive to simulate, when a smooth and differentiable density is
+    needed (risk contributions, scenario analysis, calibration), or when one model must serve many parameter
+    values. For a model as simple as Merton with linear portfolios, Monte Carlo or the closed form is the better tool.
+  \item A neural density must not be trusted outside the region where it was trained. Importance-sampling estimates
+    should use a trust region, as in the real-data study, or a proposal whose tails are lighter than the network's.
+  \item Model risk dominates network error in practice: on real data the choice of model and volatility filter
+    mattered more for the backtests than the difference between the PINN and the exact density.
+\end{itemize}
+
+\section{Limitations}
+\begin{itemize}
+  \item All synthetic results use one common jump factor, which keeps the jump integral one-dimensional.
+    Idiosyncratic jumps would make it $d$-dimensional and are untested.
+  \item Volatility enters only as a daily scale; stochastic volatility, which would double the state dimension, is
+    not modelled.
+  \item The method was not made to work at ten assets, and the amortised model degrades at long horizons in five.
+  \item The initial condition is the exact short-time density; in models without a closed form it would have to be
+    approximated, adding an error that this study does not measure.
+  \item The real-data evaluation covers two five-asset baskets and one test period (2018--2026).
+\end{itemize}
+
+\section{Future work}
+\begin{itemize}
+  \item \textbf{Higher dimensions:} wider networks and longer training, time-marching (training successive time
+    windows), and separable or low-rank architectures, to move the breakdown point beyond ten assets.
+  \item \textbf{Richer models:} stochastic volatility (Bates), idiosyncratic jumps and self-exciting (Hawkes) jump
+    arrivals. These are also the models where simulation is expensive and the PINN could win on latency.
+  \item \textbf{Option-implied calibration:} fitting the jump parameters to option prices, so that the tail reflects
+    the market's forward-looking view.
+  \item \textbf{Uncertainty quantification:} ensembles or Bayesian PINNs to attach an error bar to each risk estimate,
+    which would also detect the far-tail extrapolation failure automatically.
+  \item \textbf{Short horizons:} a time rescaling that keeps the initial density resolvable, to remove the
+    short-start-time failure.
+\end{itemize}

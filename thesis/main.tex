@@ -10,6 +10,7 @@
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{caption}
+\usepackage{xcolor}
 \usepackage[round,authoryear]{natbib}
 \usepackage[hidelinks]{hyperref}
 \usepackage[capitalise,noabbrev]{cleveref}
@@ -20,6 +21,8 @@
 \newcommand{\ES}{\mathrm{ES}}
 \newcommand{\VaR}{\mathrm{VaR}}
 \newcommand{\pct}[1]{#1\%}
+% A reference still to be added: renders in red so it cannot slip into the submitted version.
+\newcommand{\citeneeded}[1]{\textcolor{red}{[cite: #1]}}
 
 \title{Physics-Informed Neural Networks for Financial Tail-Risk Estimation}
 \author{Aditya Siraskar \and Utkarsh Sinha \and Aditya Sharma\\[1ex] Mentor: Dr.\ Jaykrishna Joshi}
@@ -29,11 +32,11 @@
 \maketitle
 \tableofcontents
 
-% \input{chapters/introduction}
-% \input{chapters/literature}
+\input{chapters/introduction}
+\input{chapters/literature}
 \input{chapters/methodology}
 \input{chapters/results}
-% \input{chapters/conclusion}
+\input{chapters/conclusion}
 
 \bibliographystyle{plainnat}
 \bibliography{references}

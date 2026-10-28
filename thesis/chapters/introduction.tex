@@ -1,0 +1,94 @@
+\chapter{Introduction}
+\label{ch:introduction}
+
+\section{Motivation}
+Financial institutions are threatened less by ordinary daily fluctuations than by rare, large losses. Their
+risk measures therefore concentrate on the tail of the loss distribution: Value at Risk (VaR), the loss level
+exceeded with a given small probability, and Expected Shortfall (ES), the average loss beyond that level. Since
+the Fundamental Review of the Trading Book, banks compute market-risk capital from the 97.5\% ES
+\citep{bcbs2019}, and ES has the theoretical advantage of being a coherent risk measure
+\citep{artzner1999,acerbi2002}.
+
+Estimating these quantities is difficult because returns are not Gaussian \citep{mandelbrot1963,cont2001}.
+Extreme moves occur far more often than a normal distribution predicts, volatility clusters in time, and
+crashes such as March 2020 arrive as sudden jumps rather than as a sequence of ordinary moves. A model can fit
+the centre of the return distribution well and still misjudge the worst one percent of outcomes, which is
+exactly the part that VaR and ES measure.
+
+Jump-diffusion models \citep{merton1976,kou2002} capture fat tails and crashes by adding a compound Poisson
+jump to the diffusion. The density of returns under such a model solves a forward partial
+integro-differential equation (PIDE), and both risk measures follow from that density: VaR is one of its
+quantiles and ES an integral over its tail. The practical question is how to obtain the density accurately in
+the tail, for a portfolio of several assets, and quickly enough to be used when market conditions change.
+
+Classical methods each fail one of these requirements. Finite-difference solvers are accurate in one or two
+dimensions but their cost grows exponentially with the number of assets. Monte Carlo scales to any dimension but
+its tail estimates converge slowly, as $N^{-1/2}$ in the number of simulated paths, and must be repeated for every
+new parameter set. Physics-informed neural networks (PINNs) \citep{raissi2019} offer a third route: a neural
+network trained to satisfy the equation itself, which is mesh-free, can take model parameters as inputs, and,
+once trained, is evaluated by a forward pass.
+
+\section{Problem statement}
+This thesis asks \emph{when a physics-informed neural network gives better tail-risk estimates than
+conventional methods, and when its overhead outweighs the gain}. The aim is not to show that PINNs are better,
+but to establish whether, when and why they are, with a design in which a negative answer is as informative as a
+positive one. That requires an exact ground truth, so that every error is measured rather than estimated; strong
+baselines, both numerical (finite differences, Monte Carlo) and statistical (GARCH, filtered historical
+simulation, extreme value theory); and an honest accounting of cost.
+
+\section{Research questions}
+\begin{description}
+  \item[RQ1 (density versus tail).] How accurately does the PINN recover the density in the bulk, and separately
+    in the tail? A small average error can hide a large tail error.
+  \item[RQ2 (risk accuracy and calibration).] How accurate are the resulting VaR and ES against exact values,
+    and how well calibrated are they on real multi-asset data?
+  \item[RQ3 (does the physics help?).] How does the PINN compare with the same network trained on data alone,
+    and how many samples does the data-only network need to match it?
+  \item[RQ4 (scaling with dimension).] How does accuracy and cost change with the number of assets, compared with
+    finite differences (usable up to about three dimensions) and Monte Carlo?
+  \item[RQ5 (latency).] Can one network, trained across a range of market parameters, answer risk queries faster
+    than Monte Carlo at equal tail error, and after how many queries does its training cost pay back?
+\end{description}
+
+\section{Approach}
+The study proceeds in stages of increasing difficulty, each validated before the next.
+\begin{enumerate}
+  \item A one-dimensional Merton model, where the exact density, a finite-difference solver and Monte Carlo
+    agree to high precision. Here the PINN design is fixed and each of its components is tested by ablation.
+  \item A $d$-asset model with one common market-jump factor, which keeps the jump integral one-dimensional and
+    the exact density available in every dimension. The PINN is scaled from one to ten assets.
+  \item An amortised PINN that takes the market parameters as inputs, so one trained network covers a whole
+    range of market states, with a latency comparison against Monte Carlo.
+  \item Daily one-day-ahead backtests on two five-asset baskets (NIFTY and S\&P sector ETFs, 2018--2026) against
+    seven standard risk models, for a linear and an option portfolio.
+  \item An ablation of the physics against a data-only network, and a set of controlled failure cases.
+\end{enumerate}
+
+\section{Contributions}
+\begin{itemize}
+  \item A PINN design for the forward jump-diffusion PIDE that learns the tail as accurately as the bulk: a
+    log-density output, a log-form residual that measures relative error, Gauss--Hermite quadrature of the jump
+    integral, and a normalisation penalty. Ablations quantify the contribution of each.
+  \item A mesh-free extension to $d$ assets in which collocation, normalisation and risk all use one importance
+    proposal built from the equation's coefficients, with an exact or stochastic (Hutchinson) trace. It reaches
+    about 1\% ES error up to five assets and identifies ten assets as the breakdown point.
+  \item An amortised network over volatility level, jump intensity and jump mean, with risk contributions and
+    scenario analysis by differentiation, and a latency comparison that reports where Monte Carlo is faster.
+  \item A real-data evaluation with Kupiec, Christoffersen, FZ0 and Diebold--Mariano tests in which the PINN's
+    error is separated from the model's error by evaluating the same model with its exact density.
+  \item A physics-versus-data ablation that measures the value of the equation in exact samples, a set of failure
+    cases including a far-tail extrapolation failure and its remedy, and an open, tested and reproducible code
+    base in which every figure and number is produced by a configuration-driven script.
+\end{itemize}
+
+\section{Scope}
+The model is a jump-diffusion with constant coefficients, Gaussian jump sizes and one common jump factor;
+time-varying volatility enters through a daily volatility scale. Results are reported for up to five assets,
+with ten assets as the documented breakdown point. Stochastic volatility, idiosyncratic jumps and self-exciting
+jump arrivals are left to future work.
+
+\section{Outline}
+\Cref{ch:literature} reviews tail-risk estimation, jump-diffusion models, physics-informed and other neural PDE
+solvers, and identifies the gap. \Cref{ch:methodology} describes the model, the reference methods, the PINN
+design and the evaluation protocol. \Cref{ch:results} reports the results stage by stage and answers the research
+questions. \Cref{ch:conclusion} summarises the findings, their limitations and directions for further work.
