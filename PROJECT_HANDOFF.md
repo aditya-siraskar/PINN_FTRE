@@ -7,6 +7,28 @@
 
 ---
 
+## Status update (2026-10-28, Stage 6 results)
+Colab T4 run at 922e3ce: about 23 min training per market. Evaluation was re-run with `--eval-only` after one fix.
+
+Fix: the S&P PINN gave ES = -139% on 2022-06-16 because one IS draw landed about 100 sigma out. The PINN is untrained there and its log-density decays more slowly than the t proposal, so that single draw took all the weight.
+- `weighted_samples_t(..., r_max)` now drops draws more than 6 radii from the nearest collocation-proposal component (`colloc_radius`).
+- The exact mass dropped is at most 2e-16. At most 0.9% of draws are dropped, the ESS fraction is at least 0.54, and the IS mass is 0.98–1.03.
+
+PINN vs exact filtered Merton, |ES rel. error| median (max):
+- NIFTY: 2.8% (7%) at 99%, 1.7% (6.5%) at 97.5%.
+- S&P: 0.2% (1.7%) at 99%, 0.35% (2.5%) at 97.5%.
+- Breach counts are equal or off by one, so the PINN reproduces the model.
+
+The model itself is conservative at 97.5%, with a breach rate of about 1.8% (Kupiec rejects on both markets). At 99% it passes Kupiec.
+
+NIFTY: FHS passes everything and beats the PINN on FZ0 (DM p 0.015). DCC also beats it. Gaussian, HS and unfiltered Merton are worse.
+
+S&P: breaches cluster for almost all models, so Christoffersen conditional coverage rejects nearly every model. The PINN beats Gaussian, HS and unfiltered Merton (DM p < 0.05). GARCH-t, EVT and DCC beat it at 97.5%.
+
+Latency: the PINN takes 8.7 ms/day on a T4, against 13 ms/day for the exact density.
+
+Next: notebook 08 (physics vs data-only, failure cases including this far-tail one, scorecard).
+
 ## Status update (2026-10-28, Stage 6 built)
 New modules: `data.py`, `calibrate.py`, `benchmarks.py`, `backtest.py`. Also `scripts/stage6_realdata.py`, `configs/stage6_realdata.yaml` and notebook 07. 26 tests pass.
 

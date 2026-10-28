@@ -225,7 +225,7 @@ for j, i in enumerate(test):
     th, st, gs = theta[j], state[i], g_rows[i]
     # PINN and exact density on the same proposal draws
     sync(); tic = time.perf_counter()
-    Xs, lq, lp = tr.weighted_samples_t(DAY, th, ev["n_is"])
+    Xs, lq, lp = tr.weighted_samples_t(DAY, th, ev["n_is"], r_max=ev["r_max"])
     wp = torch.softmax(lp - lq, 0)
     zl, zn = (torch.exp(Xs) - 1) @ wt, pnl_nl(Xs, st)
     add(i, "pinn", "linear", zl, wp)
@@ -239,7 +239,8 @@ for j, i in enumerate(test):
     add(i, "exact", "nonlinear", zn, we)
     sync(); timing["exact"] += time.perf_counter() - tic
     wpd = wp.double()
-    pin_rows.append(dict(day=i, ess=float(1 / (wpd**2).sum()) / len(wpd), mass=float(torch.exp(torch.logsumexp((lp - lq).double(), 0)) / len(lq))))
+    pin_rows.append(dict(day=i, ess=float(1 / (wpd**2).sum()) / len(wpd), mass=float(torch.exp(torch.logsumexp((lp - lq).double(), 0)) / len(lq)),
+                         dropped=float(torch.isinf(lp).double().mean())))
     # unfiltered Merton: exact Monte Carlo at the last full refit
     tic = time.perf_counter()
     pu = cal_rows[which[j]]["unf"]
@@ -479,6 +480,7 @@ save_results(STAGE, "metrics", dict(
                                     max_abs=float(g.rel.abs().max()))
                    for (b, a), g in pv.groupby(["book", "alpha"])},
     importance_sampling=dict(ess_frac_min=float(pin.ess.min()), ess_frac_median=float(pin.ess.median()),
-                             mass_min=float(pin.mass.min()), mass_max=float(pin.mass.max())),
+                             mass_min=float(pin.mass.min()), mass_max=float(pin.mass.max()),
+                             r_max=ev["r_max"], dropped_frac_max=float(pin.dropped.max())),
     ms_per_day={m: 1e3 * v / len(test) for m, v in timing.items() if v > 0}, backtest=bt_dict))
 print(f"done: {OUT}")

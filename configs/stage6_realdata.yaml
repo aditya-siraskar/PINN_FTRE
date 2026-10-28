@@ -47,6 +47,7 @@ benchmarks:
 eval:
   alphas: [0.99, 0.975]
   n_is: 32768             # PINN / exact-density IS draws per day
+  r_max: 6.0              # drop IS draws beyond this collocation radius (PINN untrained there; exact mass < 1e-15)
 
 pinn:                     # Stage 5 settings unless noted
   width: 128

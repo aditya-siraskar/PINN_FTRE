@@ -194,13 +194,31 @@ class AmortisedTrainer(NDTrainer):
         return torch.cat(out).cpu().numpy().astype(float)
 
     @torch.no_grad()
-    def weighted_samples_t(self, t: float, th, n: int, chunk: int = 1 << 16):
-        """Proposal draws X (n,d), log q and PINN log p at (t, theta), as torch tensors on the device."""
+    def colloc_radius(self, x: torch.Tensor, t: float, th) -> torch.Tensor:
+        """Mahalanobis radius of x to the nearest collocation-proposal component (jump count k <= k_max).
+
+        The PINN is only trained where collocation points land; far outside, its log-density is
+        unconstrained and can decay slower than the heavy-tailed IS proposal.
+        """
+        loc, chol, _ = self.q_col.components(torch.full((1,), t, device=self.device), self.theta(th))
+        z = torch.einsum("kij,nkj->nki", torch.linalg.inv(chol[0]), x[:, None, :] - loc)
+        return z.norm(dim=-1).min(-1).values
+
+    @torch.no_grad()
+    def weighted_samples_t(self, t: float, th, n: int, chunk: int = 1 << 16, r_max: float | None = None):
+        """Proposal draws X (n,d), log q and PINN log p at (t, theta), as torch tensors on the device.
+
+        r_max: draws farther than this from the collocation proposal (see colloc_radius) get log p = -inf,
+        so they carry no weight; None keeps every draw (Stages 4-5).
+        """
         tv, tht = torch.full((1,), t, device=self.device), self.theta(th)
         X = self.q_is.sample(tv, n, th=tht)
         lq = torch.cat([self.q_is.log_prob(xc, tv, tht) for xc in X.split(chunk)])
         lp = torch.cat([self.model(xc, torch.full((len(xc),), t, device=self.device), self.theta(th, len(xc)))
                         for xc in X.split(chunk)])
+        if r_max is not None:
+            far = torch.cat([self.colloc_radius(xc, t, th) for xc in X.split(chunk)]) > r_max
+            lp = lp.masked_fill(far, -math.inf)
         return X, lq, lp
 
     def weighted_samples(self, t: float, th, n: int):
