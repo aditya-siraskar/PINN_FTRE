@@ -58,6 +58,8 @@ else:
 %cd "{ROOT}"
 !pip install -q -e .
 sys.path.insert(0, ROOT)
+import importlib   # forget a stale "not found" from an earlier run of this cell before the clone existed
+sys.path_importer_cache.pop(ROOT, None); importlib.invalidate_caches()
 
 import torch
 print("torch", torch.__version__, "| GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else
