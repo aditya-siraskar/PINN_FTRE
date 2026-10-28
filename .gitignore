@@ -7,3 +7,9 @@ results/**/*.pt
 data/raw/
 pinn_tailrisk.egg-info/
 configs/ablations/
+# per-run ablation figures (summarised in figures/stage2_ablation) and local smoke runs
+figures/stage2_pinn1d_ab*/
+figures/*smoke*/
+results/*smoke*/
+figures/*cpucheck*/
+results/*cpucheck*/

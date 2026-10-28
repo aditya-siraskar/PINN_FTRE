@@ -116,7 +116,7 @@ ax.loglog(hs, l1, marker="s", **P.style("fd", label=r"$L^1$ density error"))
 ax.loglog(hs, [c["es99_rel"] for c in conv], marker="o", color=P.INK_2, lw=1.4, label="portfolio ES$_{99}$ rel. error")
 ax.loglog(hs, l1[-1] * (hs / hs[-1]) ** 2, color=P.MUTED, ls=(0, (2, 2)), lw=1, label="slope 2")
 ax.set(xlabel=r"grid step $\Delta x$ (%)", ylabel="error at 10 days", title="2-D FD converges")
-ax.text(0.98, 0.04, f"ES error floor ~1e-4 is set by the\nfirst-order time step ($\\Delta t$ = {f2['dt_days']} d)",
+ax.text(0.98, 0.04, f"ES floor ~1e-4 from the\nfirst-order $\\Delta t$ = {f2['dt_days']} d",
         transform=ax.transAxes, ha="right", va="bottom", fontsize=7.5, color=P.INK_2)
 ax.legend(loc="upper left")
 ax = axes[1]
