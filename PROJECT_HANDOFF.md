@@ -7,6 +7,16 @@
 
 ---
 
+## Status update (2026-10-28, Stage 5 results)
+Notebook 06 ran on a T4: training took 18 min (d = 2) and 22 min (d = 5), ≤ 0.45 GB. Median ES99 error over the (s, λ) grid, 1-day / 5-day / 10-day:
+- d = 2: PINN 1.3 / 0.8 / 0.7%; MC at the same N 1.8 / 0.9 / 0.8%; exact-IS floor 0.3–0.6%.
+- d = 5: PINN 1.3 / 1.8 / 3.4%; MC 1.4 / 0.9 / 0.7%. The worst cells are 10% (10-day, s = 0.6, λ = 15) and 7% (s = 1.6, λ ≤ 2.5).
+
+One amortised network covers the whole θ box. At d = 2 it matches or beats MC; at d = 5 it degrades with horizon.
+IS ESS is 0.6–0.8. Euler contributions are within about 5% of the finite differences of the exact ES. ES(λ) follows the exact curve; ES(s) has a bias of up to +1.3 points at mid s.
+
+Latency: MC (0.9–1.6 ms/query) is faster than PINN-IS (4–18 ms) at matched error, so fig04 finds no break-even. As expected for Merton, where exact MC is cheap. The value of the PINN is a smooth, differentiable surrogate in θ (what-if, Euler), not raw speed.
+
 ## Status update (2026-10-28, Stage 5 built)
 `pinn_tailrisk/pinn_amortised.py`, `scripts/stage5_amortised.py`, `configs/stage5_amortised.yaml`, notebook 06.
 θ = (s vol multiplier [0.6, 1.6], λ [1, 15] log-uniform, μ_J [-0.10, -0.02]) as network inputs; fresh θ per point
