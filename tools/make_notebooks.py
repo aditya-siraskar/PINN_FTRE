@@ -43,7 +43,11 @@ ROOT = f"{BASE}/PINN_FTRE"
 if not os.path.exists(ROOT):
     !git clone -q {REPO_URL} "{ROOT}"
 else:
-    !git -C "{ROOT}" pull -q --ff-only
+    rc = os.system(f'git -C "{ROOT}" pull -q --ff-only')
+    if rc != 0:   # usually: result files on Drive that have since been committed to GitHub
+        print("WARNING: git pull failed; the Drive copy is out of date. To sync (keeps untracked files):
+"
+              f'  !git -C "{ROOT}" fetch -q origin && git -C "{ROOT}" reset -q --hard origin/main')
 %cd "{ROOT}"
 !pip install -q -e .
 sys.path.insert(0, ROOT)
