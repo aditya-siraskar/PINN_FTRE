@@ -1,0 +1,325 @@
+% Methodology chapter. Settings are those in configs/*.yaml; the implementation is pinn_tailrisk/.
+\chapter{Methodology}
+\label{ch:methodology}
+
+This chapter describes the model (\cref{sec:met-model}), the reference methods that provide ground truth
+(\cref{sec:met-reference}), the physics-informed network in one and in $d$ dimensions
+(\cref{sec:met-pinn1d,sec:met-pinnnd}), how risk is read from it (\cref{sec:met-risk}), the amortised
+model (\cref{sec:met-amortised}), the real-data study (\cref{sec:met-real}), the data-only baseline
+(\cref{sec:met-dataonly}) and the evaluation protocol (\cref{sec:met-eval}). Time is measured in years of
+252 trading days and returns are log returns throughout.
+
+% ------------------------------------------------------------------------------------------------
+\section{Model}
+\label{sec:met-model}
+
+\subsection{One asset}
+The log return $X_t$ (with $X_0 = 0$) follows the Merton jump-diffusion
+\begin{equation}
+  dX_t = a\,dt + \sigma\,dW_t + dJ_t, \qquad J_t = \sum_{i=1}^{N_t} Y_i, \qquad
+  N_t \sim \mathrm{Poisson}(\lambda t), \quad Y_i \sim \mathcal{N}(\mu_J, \sigma_J^2).
+  \label{eq:merton}
+\end{equation}
+Its density $p(x,t)$ solves the forward Kolmogorov (Fokker--Planck) partial integro-differential equation
+\begin{equation}
+  p_t = -a\,p_x + \tfrac12 \sigma^2 p_{xx} + \lambda \int_{\mathbb{R}} p(x - y, t)\, f_Y(y)\,dy - \lambda\, p,
+  \label{eq:pide1d}
+\end{equation}
+with $p(\cdot, 0) = \delta_0$. The exact solution is a Poisson mixture of Gaussians \citep{merton1976},
+\begin{equation}
+  p(x,t) = \sum_{k \ge 0} \frac{e^{-\lambda t}(\lambda t)^k}{k!}\,
+           \mathcal{N}\!\left(x;\; a t + k\mu_J,\; \sigma^2 t + k\sigma_J^2\right),
+  \label{eq:exact1d}
+\end{equation}
+which is what makes the model suitable for a validation study: every PINN output can be compared with an
+exact answer. The base parameters, representing an equity index with a crash component, are $a = 0.05$,
+$\sigma = 0.20$, $\lambda = 5$/yr, $\mu_J = -0.05$ and $\sigma_J = 0.07$.
+
+\subsection{Several assets with a common jump}
+For $d$ assets the diffusion is $\mathcal{N}(a t, \Sigma t)$ and all assets share one market-jump factor:
+on a jump every asset moves by $\beta_i Y$ with a scalar $Y \sim \mathcal{N}(\mu_J, \sigma_J^2)$ and fixed
+loadings $\beta \in \mathbb{R}^d$. The forward equation becomes
+\begin{equation}
+  p_t = -a \cdot \nabla p + \tfrac12 \operatorname{tr}\!\big(\Sigma \nabla^2 p\big)
+        + \lambda \int_{\mathbb{R}} p(x - \beta y, t)\, f_Y(y)\,dy - \lambda\, p .
+  \label{eq:pidend}
+\end{equation}
+Two properties follow from the common-jump structure. First, the jump integral is one-dimensional in any
+dimension, so it can be evaluated by the same quadrature as in 1-D; a full $d$-dimensional jump distribution
+would make it a $d$-dimensional integral. Second, the density is again an exact Gaussian mixture, with
+component $k$ having mean $a t + k\mu_J\beta$ and covariance $\Sigma t + k\sigma_J^2\beta\beta^\top$.
+
+The family used in the scaling study has volatilities spread linearly over $[0.18, 0.30]$, loadings over
+$[0.8, 1.2]$ and equicorrelation $\rho = 0.4$, with the jump parameters of the 1-D model.
+
+\subsection{Why the multi-asset density is needed}
+For a linear portfolio with weights $w$, the portfolio log return $w^\top X$ is itself a 1-D Merton process
+with drift $w^\top a$, volatility $\sqrt{w^\top \Sigma w}$ and jump $(w^\top \beta)\,Y$. A linear portfolio
+alone therefore does not require a $d$-dimensional solver. We use this projection as an exact reference for
+linear portfolios, and the joint density for what the projection cannot provide: one density that serves every
+portfolio and gives risk contributions by differentiation (\cref{sec:met-amortised}), and non-linear
+portfolios that hold options (\cref{sec:met-real}).
+
+% ------------------------------------------------------------------------------------------------
+\section{Reference methods}
+\label{sec:met-reference}
+
+\paragraph{Closed form.} \Cref{eq:exact1d} and its multivariate version, truncated where the neglected
+Poisson mass is negligible, give exact densities. Exact VaR and ES of a linear portfolio come from the 1-D
+projection by root finding on the mixture CDF and the closed-form partial expectation of each Gaussian
+component.
+
+\paragraph{Finite differences in 1-D.} \Cref{eq:pide1d} is solved by an IMEX scheme: Crank--Nicolson for
+drift, diffusion and $-\lambda p$, and second-order Adams--Bashforth for the jump convolution, which is applied
+by FFT with a cell-averaged jump kernel so that mass is exact on the grid. The scheme is second order in space
+and time. It runs on $[-1.0, 0.5]$ with 4001 points and $p = 0$ at both ends; this domain is wider than the one
+the PINN is evaluated on, because on a narrower one the zero boundaries distort the far tail.
+
+\paragraph{Finite differences in 2-D.} For $d = 2$ a Douglas ADI scheme ($\theta = 1/2$) treats the
+axis-aligned drift and diffusion implicitly with one tridiagonal sweep per axis, and the mixed derivative and
+the jump integral explicitly. The jump kernel lies on the line $\{\beta y\}$; it is sampled finely, spread
+bilinearly onto grid offsets (preserving mass) and applied by FFT, so a time step costs $O(n^2 \log n)$. This
+solver is a second, independent reference in 2-D and a measurement of how grid cost grows with dimension.
+
+\paragraph{Monte Carlo.} Exact simulation of \cref{eq:merton}: a Poisson number of jumps, then the
+Gaussian conditional on it. VaR and ES are the empirical quantile and tail mean.
+
+% ------------------------------------------------------------------------------------------------
+\section{The PINN in one dimension}
+\label{sec:met-pinn1d}
+
+\paragraph{Output and inputs.} The network $g_\phi$ (four hidden layers of width 64, $\tanh$) returns the
+\emph{log} density,
+\begin{equation}
+  u(x,t) = \log p(x,t) = -\tfrac12 \log(2\pi\sigma^2 t) + c\, g_\phi(z, \tau), \qquad
+  z = \frac{x - a t}{\sigma\sqrt{t}}, \qquad
+  \tau = 2\,\frac{\log t - \log t_0}{\log T - \log t_0} - 1,
+  \label{eq:u1d}
+\end{equation}
+with output scale $c = 10$. Three reasons motivate this form. The density is positive by construction.
+Tail densities of order $10^{-4}$ become numbers of order one, which a network can fit. And in the similarity
+variable $z$ the diffusive bulk has unit width at every time, instead of collapsing as $t \to t_0$; the known
+Gaussian normaliser is added outside the network.
+
+\paragraph{Log-form residual.} Dividing \cref{eq:pide1d} by $p$ gives an equation for $u$,
+\begin{equation}
+  r(x,t) = u_t + a\,u_x - \tfrac12\sigma^2\big(u_{xx} + u_x^2\big) - \lambda\,(S - 1), \qquad
+  S(x,t) = \int e^{\,u(x-y,t) - u(x,t)}\, f_Y(y)\,dy .
+  \label{eq:logres}
+\end{equation}
+The standard residual (on $p$) weighs a point by the size of the density there, so the tail, where risk is
+determined, contributes almost nothing to the loss. The log-form residual measures relative error and weighs a
+tail point as much as a bulk point. The residual is multiplied by $t$ to make it dimensionless across the time
+range.
+
+\paragraph{Jump integral.} Since $Y$ is Gaussian, $S$ is computed by Gauss--Hermite quadrature with nodes
+$y_j = \mu_J + \sqrt{2}\,\sigma_J \xi_j$ and weights $w_j/\sqrt{\pi}$; 48 nodes are used (chosen by the ablation
+in the results chapter).
+
+\paragraph{Initial condition.} Training starts at $t_0 = 0.5$ day from the exact density
+\cref{eq:exact1d}, which avoids the Dirac delta at $t = 0$. In practice this short-time density would come from
+the diffusion approximation plus at most one jump; here it is exact so that the study measures the PDE solve
+alone.
+
+\paragraph{Loss.} The loss is
+\begin{equation}
+  \mathcal{L} = w_{\mathrm{pde}}\,\overline{r^2}
+              + w_{\mathrm{ic}}\,\overline{\big(u(x, t_0) - \log p(x, t_0)\big)^2}
+              + w_{\mathrm{norm}}\,\overline{\Big(\log \textstyle\int e^{u(x,t)}\,dx\Big)^2}
+              + w_{\mathrm{bc}}\,\mathcal{L}_{\mathrm{decay}},
+  \label{eq:loss1d}
+\end{equation}
+with weights 1, 10, 10 and 1. The normalisation term keeps $\int p = 1$, which the residual of
+\cref{eq:logres} does not enforce on its own (it is unchanged by adding a constant to $u$). The decay term
+asks the density to fall at the ends of the domain $[-0.6, 0.3]$. In 1-D, 4096 collocation points are drawn
+per step, 40\% of them around the model's current 1\% quantile (tail-adaptive sampling, refreshed every 250
+steps).
+
+\paragraph{Optimisation.} Adam with learning rate $2\times10^{-3}$, cosine-annealed to $2\times10^{-5}$ over
+20{,}000 steps, with gradient clipping at norm 1.
+
+% ------------------------------------------------------------------------------------------------
+\section{The PINN in $d$ dimensions}
+\label{sec:met-pinnnd}
+
+The 1-D design carries over with four changes.
+
+\paragraph{Whitened input.} With $L$ the Cholesky factor of $\Sigma$, the network sees
+$z = L^{-1}(x - a t)/\sqrt{t}$ and $\tau$, and the Gaussian normaliser
+$-\tfrac12\log\det(2\pi\Sigma t)$ is added to its output. The network has width 128 and depth 4.
+
+\paragraph{Residual.} The log-form residual of \cref{eq:pidend} is
+\begin{equation}
+  r = u_t + a\cdot\nabla u - \tfrac12\Big[\operatorname{tr}\!\big(\Sigma\nabla^2 u\big)
+      + \nabla u^\top \Sigma\, \nabla u\Big] - \lambda (S - 1), \qquad
+  S = \int e^{\,u(x - \beta y) - u(x)} f_Y(y)\,dy,
+\end{equation}
+and $S$ uses the same 48-node quadrature along $\beta$.
+
+\paragraph{Trace term.} $\operatorname{tr}(\Sigma\nabla^2 u) = \sum_i \ell_i^\top \nabla^2 u\, \ell_i$, with
+$\ell_i$ the columns of $L$, is computed exactly by $d$ Hessian-vector products for $d \le 4$. For larger $d$ it
+is replaced by Hutchinson's estimator $\mathbb{E}_v\big[(Lv)^\top \nabla^2 u\,(Lv)\big]$ with four Rademacher
+probes $v$, whose cost does not grow with $d$.
+
+\paragraph{No grid: a proposal built from the coefficients.} A box domain cannot be used in $d$ dimensions,
+so collocation, the normalisation integral and the risk computation all draw from a proposal
+\begin{equation}
+  q(x \mid t) = \sum_{k=0}^{K} \pi_k(t)\; t_\nu\!\Big(x;\; a t + k\mu_J\beta,\;
+                c^2\big(\Sigma t + k\sigma_J^2 \beta\beta^\top\big)\Big),
+  \label{eq:proposal}
+\end{equation}
+a mixture over $k = 0,\dots,K$ jumps of multivariate Student-$t$ components. The weights $\pi_k$ are the Poisson
+probabilities, floored at 0.05 and renormalised so that every jump count is sampled. The proposal uses only the
+coefficients of the PIDE, not its solution. Two versions are used: for collocation and the initial condition,
+$\nu = 30$ and $c = 1.5$ (heavier tails put training targets at $\log p \approx -7000$ in high dimension); for
+the normalisation integral and for risk, $\nu = 5$ and $c = 1.2$, so that importance weights stay bounded where
+the density is non-negligible. The default is $K = 3$ jumps. Tail-adaptive sampling is not used in $d$
+dimensions, since it gave no gain in 1-D.
+
+\paragraph{Normalisation loss.} With $M$ proposal draws at each of several times,
+\begin{equation}
+  \mathcal{L}_{\mathrm{norm}} = \overline{\Big(\log \tfrac1M \textstyle\sum_m e^{\,u(x_m,t) - \log q(x_m \mid t)}\Big)^2},
+\end{equation}
+computed with a log-sum-exp. Penalising $(\text{mass} - 1)^2$ directly overflows for an untrained network.
+The loss weights, optimiser and schedule are those of the 1-D model, with 2048 collocation points, 4096
+initial-condition points and 4096 normalisation draws per step.
+
+% ------------------------------------------------------------------------------------------------
+\section{Risk from the network}
+\label{sec:met-risk}
+
+The loss is $L = -X$ and, at confidence level $\alpha$,
+$\VaR_\alpha = \inf\{\ell : P(L \le \ell) \ge \alpha\}$ and $\ES_\alpha = \mathbb{E}[L \mid L \ge \VaR_\alpha]$,
+both reported as positive numbers. In 1-D they are read from the density on a grid. In $d$ dimensions they are
+computed by self-normalised importance sampling: draws $x_m \sim q(\cdot \mid t)$ from \cref{eq:proposal} get
+weights $\tilde w_m \propto \exp\big(u(x_m,t) - \log q(x_m \mid t)\big)$, and VaR and ES of any portfolio
+$P\&L(x)$ are the weighted quantile and the weighted tail mean of $P\&L(x_m)$, with the atom at the quantile
+split exactly. The same draws serve every portfolio. Because the density is an explicit function of $x$, $w$
+and (in the amortised model) the market parameters, risk contributions $\partial\ES/\partial w_i$ follow from
+the weighted tail average of each asset's return.
+
+\paragraph{Trust region.} The network is constrained only where collocation points are drawn. Far outside that
+region it can decay more slowly than the proposal, and a single draw then dominates the weights. For the
+real-data study, draws whose Mahalanobis radius to the nearest collocation component exceeds $r_{\max} = 6$ are
+given zero weight; the exact mass removed in this way is below $10^{-15}$.
+
+% ------------------------------------------------------------------------------------------------
+\section{Amortised model}
+\label{sec:met-amortised}
+
+To answer queries for a changing market without retraining, the network takes the parameters
+$\theta = (s, \lambda, \mu_J)$ as additional inputs. Here $s$ multiplies every diffusion volatility
+(covariance $s^2\Sigma$, with correlations and loadings fixed), $\lambda$ is the jump intensity and $\mu_J$
+the mean jump; $\sigma_J$ is fixed. The whitened input is also divided by $s$. Training draws a fresh $\theta$
+for every collocation, initial-condition and normalisation point, from the box $s \in [0.6, 1.6]$,
+$\lambda \in [1, 15]$/yr (log-uniform) and $\mu_J \in [-0.10, -0.02]$. The initial condition is the exact mixture
+at $t_0$ evaluated at each point's $\theta$, and the proposal of \cref{eq:proposal} is evaluated at each row's
+$\theta$. The exact trace is used, and training runs for 30{,}000 steps.
+
+Latency is measured on the same device for PINN importance sampling with $N_{\mathrm{IS}}$ draws and Monte
+Carlo with $N_{\mathrm{MC}}$ paths. Fitting error $\propto N^{\text{slope}}$ and latency $\approx l_0 + l_1 N$
+for each method gives the cost of each at the PINN's error level, and from that the number of queries at which
+the training cost is paid back (the break-even).
+
+% ------------------------------------------------------------------------------------------------
+\section{Real-data study}
+\label{sec:met-real}
+
+\paragraph{Data.} Two five-asset baskets: the five largest NIFTY 50 constituents (Reliance, HDFC Bank, Infosys,
+ICICI Bank, TCS) and five S\&P 500 sector ETFs (XLK, XLF, XLE, XLV, XLI). Daily adjusted prices from Yahoo
+Finance from January 2006 (earlier NIFTY prices contain bad prints) to October 2026. The log returns are
+committed with the code, since the provider revises adjusted prices. Models are developed on 2006--2017 and
+tested from January 2018, which includes the COVID crash.
+
+\paragraph{Calibration.} The common-jump model is fitted by maximum likelihood to daily returns, each day being
+one draw of $X$ over one trading day with density the Poisson mixture over $k \le 8$ jumps. In the
+\emph{filtered} model a daily volatility scale $s_t$ from an EWMA filter (decay 0.94) multiplies every diffusion
+volatility, which is exactly the parameter the amortised PINN takes as input. Jump loadings are fixed equal: with
+free loadings the NIFTY jump attaches to a single stock and stops being a market jump. Parameters are optimised
+jointly with L-BFGS in double precision, and standard errors come from the inverse Hessian. During the test
+period $(\lambda, \mu_J)$ are refitted monthly on a 1000-day window with a Gaussian prior centred on the
+development fit (standard deviation 0.5 for $\log\lambda$ and 0.01 for $\mu_J$), because the rolling fit alone is
+weakly identified. An \emph{unfiltered} model (no $s_t$, all parameters refitted monthly) is a separate
+benchmark.
+
+\paragraph{The PINN.} One amortised network per market is trained on a box set from development data only:
+$s$ over the range seen in development (widened by factors 0.75 and 1.35), $\lambda$ within a factor $e^{\pm1.5}$ of
+the development fit and $\mu_J$ within $\pm 0.025$. Time runs over $[0.5, 1.5]$ days, since only one-day-ahead
+forecasts are needed, and $K = 8$ jumps are allowed because real-data jumps are small and frequent. Each test day
+is one forward query at that day's $\theta_t$, using 32{,}768 importance draws. The same model evaluated with its
+exact density on the same draws is reported alongside, so the difference between the two is the PINN's error
+and not the model's.
+
+\paragraph{Portfolios.} An equal-weight basket (linear) and the basket plus a short one-month put struck 3\%
+out of the money, rolled monthly (non-linear). The put is priced by Black--Scholes with zero rate and implied
+volatility equal to the EWMA volatility of the basket, and the book is fully revalued on every scenario.
+
+\paragraph{Benchmarks.} All forecast one day ahead without look-ahead: Gaussian (250-day window), historical
+simulation (500 days), filtered historical simulation (per-asset EWMA rescaling), GARCH(1,1) with Student-$t$
+innovations (1000-day window, refitted monthly), GARCH-EVT \citep{mcneil2000} with a generalised Pareto tail
+above the 10\% threshold of the standardised residuals, and DCC-GARCH-$t$ (univariate GARCH refitted monthly,
+DCC parameters yearly). Multivariate models produce joint scenarios, so they revalue the non-linear book too.
+
+% ------------------------------------------------------------------------------------------------
+\section{Data-only baseline}
+\label{sec:met-dataonly}
+
+To measure what the physics contributes (RQ3), the $d$-dimensional network is trained without the PIDE. It is
+identical to the PINN in architecture, optimiser, learning-rate schedule, number of steps and normaliser
+estimator, and it is trained by maximum likelihood on $N$ exact samples $(x_i, t_i)$:
+\begin{equation}
+  \mathcal{L}_{\mathrm{NLL}} = -\frac1N \sum_i \Big[u(x_i, t_i) - \log Z(t_i)\Big], \qquad
+  \log Z(t) = \log \mathbb{E}_{q}\!\Big[e^{\,u(X,t) - \log q(X \mid t)}\Big],
+\end{equation}
+where $\log Z$ is estimated on fresh proposal draws at every step, exactly as the PINN's normalisation term.
+The samples are spread evenly over 16 times: 13 log-spaced in $[t_0, T]$ plus the three evaluation horizons.
+20\% are held out, and the state with the best validation likelihood (on fixed proposal draws) is kept. $N$
+ranges over $10^3$, $10^4$, $10^5$ and $10^6$, with three seeds each. Monte Carlo on the same samples (those at
+each horizon) is reported as the purely empirical alternative.
+
+% ------------------------------------------------------------------------------------------------
+\section{Evaluation protocol}
+\label{sec:met-eval}
+
+\paragraph{Portfolios.} For each dimension: the equal-weight portfolio, 15 long-only portfolios with
+Dirichlet(1) weights and 4 long--short portfolios (weights summing to one), with a fixed seed. Errors are
+reported as the median over these 20 portfolios.
+
+\paragraph{Accuracy.} The headline metric is the relative error of $\ES_{99}$ at 1, 5 and 10 days against the
+exact value; VaR and the 97.5\% level are also reported. Density accuracy is split into bulk and tail, which
+answers RQ1 directly. In 1-D the bulk error is the relative $L^1$ error between the 1\% and 99\% quantiles and the
+tail error the mean absolute error of $\log p$ beyond them. In $d$ dimensions both are evaluated on exact samples:
+the mean absolute error of $\log p$ over all samples, and over the samples in the 1\% loss tail of the equal-weight
+portfolio.
+
+\paragraph{Sampling controls.} Importance sampling adds sampling error to the network's error. Two controls are
+computed on the same draws: the same estimator with the \emph{exact} density (the IS floor, the best any density
+could do with this proposal and budget), and Monte Carlo with the same number of draws. All methods in a
+comparison use common random numbers, so differences between them are model differences.
+
+\paragraph{Backtests.} For each forecast series, with a breach on day $t$ when the realised P\&L is below
+$-\VaR_t$:
+\begin{itemize}
+  \item \textbf{Kupiec} unconditional coverage: likelihood-ratio test that the breach rate is $1 - \alpha$.
+  \item \textbf{Christoffersen} conditional coverage: Kupiec plus a test that breaches are independent from one
+        day to the next (a first-order Markov alternative).
+  \item \textbf{FZ0} score of \citet{patton2019}, a strictly consistent scoring function for the pair
+        (VaR, ES): with $v_t = -\VaR_t$, $e_t = -\ES_t$ and $p = 1-\alpha$,
+        \begin{equation}
+          S(y_t; v_t, e_t) = -\frac{\mathbf{1}\{y_t \le v_t\}(v_t - y_t)}{p\, e_t} + \frac{v_t}{e_t} + \log(-e_t) - 1,
+        \end{equation}
+        averaged over the test period (lower is better). It is the only one of these criteria that evaluates ES.
+  \item \textbf{Diebold--Mariano} test of equal mean FZ0 loss between each benchmark and the PINN, with a
+        Newey--West variance.
+\end{itemize}
+
+\paragraph{Failure cases.} Each failure experiment changes one setting of the $d = 2$ model and keeps all
+others: a crisis jump intensity $\lambda = 50$/yr with the default proposal ($K = 3$, which leaves 14\% of the
+10-day mass in states with more jumps) and with $K = 10$, and a start time ten times closer to the singular
+initial condition ($t_0 = 0.05$ day). A far-tail probe evaluates $\log p - \log q$ for the PINN and the exact
+density along 2000 random directions up to 150 whitened units.
+
+\paragraph{Reproducibility.} Every experiment is a script driven by a YAML configuration. Each run writes its
+figures, its metrics and the code version, library versions and device that produced them. The notebooks only
+call these scripts, and the test suite checks the exact density, the reference solvers, the PINN residual
+(which vanishes for the exact density as the quadrature is refined) and the data-only likelihood.

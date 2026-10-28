@@ -36,8 +36,8 @@ $\exp(u - \log q)$. Two controls separate model error from sampling error:
 \paragraph{Error metric.} The headline metric is the relative ES error
 $|\widehat{\ES}_\alpha / \ES_\alpha - 1|$ at $\alpha = 99\%$ (written ES$_{99}$), reported as the median over
 20 portfolios per dimension (equal weight, 15 random long-only, 4 long--short). Density accuracy is reported
-separately in the bulk (relative $L^1$) and in the tail (mean absolute error of $\log p$ beyond the 1\%
-quantiles), which is the distinction asked for in RQ1.
+separately in the bulk and in the tail (mean absolute error of $\log p$ in the 1\% loss tail), which is the
+distinction asked for in RQ1 (\cref{sec:met-eval}).
 
 \paragraph{Hardware.} Training ran on a single NVIDIA T4 (Colab for Stages 2--6, Kaggle for Stage 7), with
 peak memory below 0.5\,GB in every run.
