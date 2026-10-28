@@ -33,8 +33,6 @@ for f in sorted(RESULTS.glob("stage4_pinn_nd_d*/metrics.json")):
     run = f.parent.name
     tag = run.split("_d", 1)[1]
     d, _, tag = tag.partition("_")
-    if tag not in ("", "exact"):
-        continue
     m = json.loads(f.read_text())
     med = pd.DataFrame(m["median_abs_rel"])
     for h in (1, 10):
@@ -43,6 +41,7 @@ for f in sorted(RESULTS.glob("stage4_pinn_nd_d*/metrics.json")):
                          es99_pinn=r.es_rel_pinn, es99_is_floor=r.es_rel_is_exact, es99_mc=r.es_rel_mc,
                          tail_mae_log=m["density_error"][f"{h}d"]["tail_mae_log"],
                          ess_frac=m["importance_sampling"][f"{h}d"]["ess_frac_pinn"],
+                         width=m["pinn_config"].get("width"), steps=m["pinn_config"].get("steps"),
                          train_min=m["train_time_s"] / 60, peak_mem_mb=m["peak_mem_mb"]))
 if not rows:
     sys.exit("no Stage 4 results found; run scripts/stage4_pinn_nd.py first")
@@ -83,7 +82,7 @@ fig.tight_layout()
 P.savefig(fig, STAGE, "fig01_scaling")
 
 # ---------------------------------------------------------------- fig02: Hutchinson vs exact trace at the same d
-pair = S[S.d.isin(S[S.run == "exact"].d)]
+pair = S[(S.d == 5) & S.run.isin(["default", "exact"])]
 if (pair.run == "exact").any():
     fig, axes = plt.subplots(1, 2, figsize=(9, 3.3))
     lab = {"default": "Hutchinson estimator", "exact": "exact trace"}

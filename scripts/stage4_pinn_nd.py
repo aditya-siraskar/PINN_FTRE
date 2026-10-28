@@ -37,6 +37,8 @@ ap.add_argument("--d", type=int, required=True)
 ap.add_argument("--trace", choices=["exact", "hutchinson"])
 ap.add_argument("--steps", type=int)
 ap.add_argument("--seed", type=int)
+ap.add_argument("--width", type=int)
+ap.add_argument("--depth", type=int)
 ap.add_argument("--tag", default="")
 args = ap.parse_args()
 
@@ -44,7 +46,7 @@ d = args.d
 STAGE = f"stage4_pinn_nd_d{d}" + (f"_{args.tag}" if args.tag else "")
 base, s3, c4 = load_config("configs/base.yaml"), load_config("configs/stage3_multiasset.yaml"), load_config(args.config)
 pc, ev = c4["pinn_nd"], c4["eval"]
-for k in ("trace", "steps", "seed"):
+for k in ("trace", "steps", "seed", "width", "depth"):
     if getattr(args, k) is not None:
         pc[k] = getattr(args, k)
 cfg = NDConfig(**pc)
