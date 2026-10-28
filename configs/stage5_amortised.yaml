@@ -1,0 +1,47 @@
+# Stage 5: amortised PINN. The network takes theta = (s, lam, mu_J) as inputs.
+# Base parameters (drift, sigma_J, t0/T) come from base.yaml; the asset family
+# (vols, loadings, correlation) is Stage 3's `scaling` block; s scales every vol.
+theta_box:
+  s: [0.6, 1.6]          # vol multiplier: 0.18-0.30 base vols -> 11%-48%
+  lam: [1.0, 15.0]       # jumps per year (sampled log-uniformly)
+  mu_j: [-0.10, -0.02]   # mean common jump
+
+pinn:                    # Stage 4 settings unless noted
+  width: 128
+  depth: 4
+  out_scale: 10.0
+  n_gh: 48
+  n_colloc: 2048
+  trace: exact           # Stage 4: as accurate as Hutchinson at d = 5 and only ~6% slower
+  n_ic: 4096             # fresh (t0, theta, x) draws every step
+  n_norm: 4096
+  n_norm_t: 16           # (t, theta) groups per normalisation step
+  k_max: 3
+  colloc_scale: 1.5
+  is_scale: 1.2
+  df: 5.0
+  colloc_df: 30.0
+  w_pde: 1.0
+  w_ic: 10.0
+  w_norm: 10.0
+  steps: 30000           # 1.5x Stage 4: one network now covers a box of markets
+  lr: 0.002
+  lr_min: 0.00002
+  log_every: 250
+  seed: 0
+
+eval:
+  d_list: [2, 5]
+  centre: [1.0, 5.0, -0.05]          # base market (s, lam, mu_J)
+  grid_s: [0.6, 0.8, 1.0, 1.3, 1.6]
+  grid_lam: [1.0, 2.5, 5.0, 10.0, 15.0]
+  grid_mu: [-0.10, -0.08, -0.05, -0.035, -0.02]
+  n_is: 65536            # draws per (theta, horizon) for the accuracy maps (PINN, exact-density IS, MC)
+  n_track: 32768
+  n_long_only: 15        # same portfolios as Stage 4
+  n_long_short: 4
+  portfolio_seed: 123
+  latency_n: [1024, 4096, 16384, 65536, 262144]       # PINN-IS draws per query
+  latency_n_mc: [4096, 16384, 65536, 262144, 1048576]  # MC paths per query
+  latency_reps: 20       # repeated queries per N (error spread and median latency)
+  whatif_n: 65536

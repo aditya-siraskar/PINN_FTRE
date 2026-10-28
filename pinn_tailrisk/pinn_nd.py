@@ -80,20 +80,28 @@ class Proposal:
         self.bb = torch.outer(self.beta, self.beta)
         self.device = device
 
-    def components(self, t: torch.Tensor):
-        """t: (M,) -> loc (M,K,d), chol (M,K,d,d), log weights (M,K)."""
+    def components(self, t: torch.Tensor, th: torch.Tensor | None = None):
+        """t: (M,) -> loc (M,K,d), chol (M,K,d,d), log weights (M,K).
+
+        th (M,3) optionally overrides (vol scale s, lam, mu_j) per row (Stage 5); the
+        diffusion covariance becomes s^2 Sigma.
+        """
         k = self.k
-        loc = self.a * t[:, None, None] + (k[:, None] * self.mu_j * self.beta)[None]
-        S = self.scale**2 * (t[:, None, None, None] * self.cov + (k[:, None, None] * self.sigma_j**2 * self.bb)[None])
+        if th is None:
+            s2, lam, mu = 1.0, self.lam, self.mu_j
+        else:
+            s2, lam, mu = th[:, 0, None, None, None] ** 2, th[:, 1, None], th[:, 2, None, None]
+        loc = self.a * t[:, None, None] + k[None, :, None] * mu * self.beta
+        S = self.scale**2 * (s2 * t[:, None, None, None] * self.cov + (k[:, None, None] * self.sigma_j**2 * self.bb)[None])
         chol = torch.linalg.cholesky(S)
-        lt = self.lam * t[:, None]
+        lt = lam * t[:, None]
         logpois = k * torch.log(lt) - lt - torch.lgamma(k + 1)
         logpi = torch.log(torch.clamp(torch.exp(logpois), min=self.floor))
         return loc, chol, logpi - torch.logsumexp(logpi, -1, keepdim=True)
 
-    def sample(self, t: torch.Tensor, n: int | None = None) -> torch.Tensor:
+    def sample(self, t: torch.Tensor, n: int | None = None, th: torch.Tensor | None = None) -> torch.Tensor:
         """One draw per entry of t (shape (N,)), or n draws at the single time t (shape (1,))."""
-        loc, chol, logpi = self.components(t)
+        loc, chol, logpi = self.components(t, th)
         n = n or len(t)
         idx = torch.arange(n, device=self.device) if len(t) > 1 else torch.zeros(n, dtype=torch.long, device=self.device)
         comp = torch.multinomial(torch.exp(logpi[idx]), 1).squeeze(-1)
@@ -102,13 +110,15 @@ class Proposal:
         y = torch.einsum("nij,nj->ni", chol[idx, comp], eps) * torch.sqrt(self.df / chi2)[:, None]
         return loc[idx, comp] + y
 
-    def log_prob(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """x: (N,d); t: (N,) or a single time (1,)."""
-        loc, chol, logpi = self.components(t)
+    def log_prob(self, x: torch.Tensor, t: torch.Tensor, th: torch.Tensor | None = None) -> torch.Tensor:
+        """x: (N,d); t: (N,) or a single time (1,); th like t."""
+        loc, chol, logpi = self.components(t, th)
         d, df = self.d, self.df
         diff = x[:, None, :] - loc                                     # (N,K,d), loc broadcasts if M = 1
-        cb = chol.expand(diff.shape[0], -1, -1, -1) if chol.shape[0] == 1 else chol
-        z = torch.linalg.solve_triangular(cb, diff[..., None], upper=False).squeeze(-1)
+        if chol.shape[0] == 1:                                         # one (t, theta): invert K small factors once
+            z = torch.einsum("kij,nkj->nki", torch.linalg.inv(chol[0]), diff)
+        else:
+            z = torch.linalg.solve_triangular(chol, diff[..., None], upper=False).squeeze(-1)
         maha = (z**2).sum(-1)
         logdet = 2 * torch.log(torch.diagonal(chol, dim1=-2, dim2=-1)).sum(-1)
         lp = (math.lgamma((df + d) / 2) - math.lgamma(df / 2) - 0.5 * d * math.log(df * math.pi)

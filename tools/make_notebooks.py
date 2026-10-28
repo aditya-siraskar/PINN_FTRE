@@ -327,7 +327,7 @@ notebook("05_phase2_stage4_pinn_nd.ipynb", [
 ## 1. Method in one paragraph
 Same recipe as the 1-D PINN (log density, log residual × t, start at t0 from the exact density, 48 Gauss–Hermite
 nodes for the jump integral, which stays 1-D because the jump is common). New for d dimensions: inputs whitened by
-the Cholesky factor of Σt; the trace term tr(Σ∇²u) is exact for d ≤ 4 and a **Hutchinson** estimate (4 Rademacher'''
+the Cholesky factor of Σt; the trace term tr(Σ∇²u) is exact for d ≤ 4 and a **Hutchinson** estimate (4 Rademacher
 probes) above; no box domain: collocation, the normalisation integral and portfolio VaR/ES all use one importance
 proposal (Student-t mixture over 0–3 jumps, built from the PIDE coefficients only). Tail-adaptive sampling is
 dropped (Stage 2c: no gain). Every portfolio is checked against its **exact** 1-D law.
@@ -397,23 +397,80 @@ The cell below is a commented skeleton of the follow-up runs (exact trace; then 
 '''),
 ])
 
+# ------------------------------------------------------------------ 06
+notebook("06_phase3_stage5_realtime_amortised.ipynb", [
+    header("06_phase3_stage5_realtime_amortised.ipynb", "06 · Stage 5: amortised, real-time risk (headline)",
+           "Phase 3: real-time",
+           "One network over a box of market parameters θ = (vol level s, jump intensity λ, mean jump μ_J) at d = 2 and 5: "
+           "accuracy across θ, latency per VaR/ES query vs Monte Carlo at matched tail error, break-even query count, "
+           "Euler risk contributions and what-if curves (RQ5).",
+           "`figures/stage5_amortised_d<d>/fig01–fig05`, `results/stage5_amortised_d<d>/`"),
+    code(SETUP),
+    code(IMPORTS),
+    md("""
+## 1. Method in one paragraph
+Stage 4 trained one network per market. Here θ = (s, λ, μ_J) are extra network inputs (s scales every vol;
+λ is sampled log-uniformly; correlations, loadings and σ_J stay fixed), and every collocation, initial-condition
+and normalisation point gets its own θ drawn from the training box. The PIDE coefficients, the exact initial
+density at t0 and the importance proposal are all evaluated at each point's θ. After one training run, a **new
+market state is one forward pass**: draw from the proposal at θ, weight by the network density, sort.
+Any portfolio w reuses the same draws.
+
+Scope: d ≤ 5 (Stage 4 found d = 10 is where the method breaks down). Truth for every (θ, w, horizon) is the
+closed-form portfolio law. MC runs on the same GPU, so latency is like-for-like.
+"""),
+    code("print(open('configs/stage5_amortised.yaml').read())"),
+    md("""
+## 2. Train and evaluate (d = 2, 5)
+Resumable: finished runs are skipped. Estimated (not yet measured) **about 1 h on a T4** for both, including
+evaluation. A crash after training can be re-evaluated without retraining: add `--eval-only`.
+"""),
+    code(r'''
+import pathlib
+STEPS = 30000
+for d in (2, 5):
+    run = f"stage5_amortised_d{d}"
+    if pathlib.Path(f"results/{run}/metrics.json").exists():
+        print("skip", run); continue
+    !python scripts/stage5_amortised.py --d {d} --steps {STEPS}
+
+# d = 10: not pursued (Stage 4 breakdown point). Skeleton for future work:
+# !python scripts/stage5_amortised.py --d 10 --steps 60000
+'''),
+    md("""
+## 3. Figures and what to check
+
+| Figure | Pass criterion |
+|---|---|
+| fig01_training | all loss terms fall; tracked ES₉₉ error at the base market drops to about 1% |
+| fig02_accuracy_theta | median ES₉₉ error ≲ 1–2% over most of the (s, λ) box, at the level of MC with the same N; edges of the box may be worse |
+| fig03_latency | error-vs-latency curves on the same GPU; the title states the speed-up at the PINN's error level |
+| fig04_breakeven | queries after which training time is paid back (or "no break-even" if MC is faster per query) |
+| fig05_euler_whatif | PINN Euler contributions match the exact bars; PINN what-if curves track the exact ES smoothly across λ and s |
+"""),
+    code(r'''
+for d in (2, 5):
+    print(f"======== d = {d}")
+    show_figures(f"stage5_amortised_d{d}")
+'''),
+    md("## 4. Numbers"),
+    code(r'''
+rows = []
+for d in (2, 5):
+    m = load_metrics(f"stage5_amortised_d{d}")
+    for h in ("1d", "10d"):
+        g, b = m["es99_median_over_grid"][h], m["breakeven"][h]
+        rows.append(dict(d=d, horizon=h, es99_pinn=g["es_rel_pinn"], es99_mc=g["es_rel_mc"], es99_is_floor=g["es_rel_is_exact"],
+                         pinn_ms=b["pinn_ms"], mc_ms_matched=b["mc_ms"], speedup=b["speedup"],
+                         breakeven_queries=b["breakeven_queries"], train_min=m["train_time_s"] / 60))
+display(pd.DataFrame(rows).style.format(precision=4))
+for d in (2, 5):
+    print(d, "worst theta:", load_metrics(f"stage5_amortised_d{d}")["es99_worst_theta"])
+'''),
+])
+
 # ------------------------------------------------------------------ planned stages
 PLANNED = [
-    ("06_phase3_stage5_realtime_amortised.ipynb", "06 · Stage 5: amortised, real-time risk (headline)",
-     "Phase 3: real-time",
-     "One network over the parameter space θ (and portfolio weights w); latency per VaR/ES query vs Monte Carlo at equal tail error (RQ5).",
-     "`figures/stage5_realtime/`",
-     """
-**To build:** θ = (σ's, ρ, λ, μ_J, σ_J) and optionally w as network inputs (or a DeepONet-style operator), with ranges taken from the rolling calibrations.
-
-**Benchmark protocol:** fixed GPU (T4), warm-up, median of 100 queries, batch sizes 1 and 1024; MC paths chosen to match the PINN's ES₉₉ error.
-
-**Planned figures:**
-- fig01 accuracy across θ (error heatmap)
-- fig02 latency vs MC at matched error'''
-- fig03 break-even query count (training cost amortised)
-- fig04 Euler risk contributions ∂ES/∂wᵢ via autodiff vs finite-difference bumps
-""", None),
     ("07_phase4_stage6_real_data.ipynb", "07 · Stage 6: real data, non-linear portfolio and backtests",
      "Phase 4: empirical",
      "Rolling one-day-ahead VaR/ES on a NIFTY basket and an S&P sector-ETF basket (2005–), including an index-option position; benchmarks and backtests (RQ2).",

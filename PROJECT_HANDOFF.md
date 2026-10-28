@@ -7,6 +7,17 @@
 
 ---
 
+## Status update (2026-10-28, Stage 5 built)
+`pinn_tailrisk/pinn_amortised.py`, `scripts/stage5_amortised.py`, `configs/stage5_amortised.yaml`, notebook 06.
+θ = (s vol multiplier [0.6, 1.6], λ [1, 15] log-uniform, μ_J [-0.10, -0.02]) as network inputs; fresh θ per point
+for PDE, IC (exact mixture at t0 in torch) and normalisation. `Proposal` in pinn_nd now takes optional per-row θ.
+Exact trace at d ≤ 5. Width 192 diverged at d = 5 on CPU within 20 steps (PDE loss 1e22); width 128 is stable.
+Evaluation: (s, λ) grid + μ_J sweep vs closed form, MC and exact-IS at the same N; torch latency of PINN-IS vs MC
+on the same device; break-even from fitted MC error ~ N^slope and latency ~ l0 + l1 N at the PINN's error level;
+Euler contributions (IS tail average vs FD of exact ES); what-if ES(λ), ES(s) with common random numbers.
+Risk: for Merton, MC sampling is as cheap as proposal sampling, so the PINN's speed edge (if any) comes only from
+needing fewer draws (tail-focused proposal); report honestly if MC wins.
+
 ## Status update (2026-10-28, Stage 4 results)
 Notebook 05 ran on a T4 (9–14 min per run, ~1 h total, ≤ 0.45 GB). Median portfolio ES₉₉ error, 1-day / 10-day:
 d = 1: 1.4% / 0.05%; d = 2: 0.7% / 1.0%; d = 5: 1.1% / 0.6% (Hutchinson) and 0.09% / 1.4% (exact trace);
