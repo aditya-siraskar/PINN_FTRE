@@ -1,0 +1,36 @@
+# Stage 4: d-asset PINN. Drift, jump parameters and t0/T come from base.yaml;
+# the asset family (vols, loadings, correlation) is Stage 3's `scaling` block.
+pinn_nd:
+  width: 128
+  depth: 4
+  out_scale: 10.0
+  n_gh: 48             # same as Stage 2 (exact-density residual: median 1.6e-5 at 48 nodes)
+  n_colloc: 2048
+  trace: auto          # exact for d <= exact_max_d, Hutchinson above; or force exact | hutchinson
+  exact_max_d: 4
+  n_probes: 4
+  n_ic: 4096
+  n_norm: 4096
+  n_norm_t: 8
+  k_max: 3
+  colloc_scale: 1.5
+  is_scale: 1.2
+  df: 5.0              # IS proposal tails (heavy = safe weights)
+  colloc_df: 30.0      # collocation/IC proposal tails: df 5 gave IC targets down to log p = -7000 at d = 10
+  w_pde: 1.0
+  w_ic: 10.0
+  w_norm: 10.0
+  steps: 20000
+  lr: 0.002
+  lr_min: 0.00002
+  log_every: 250
+  seed: 0
+
+eval:
+  d_list: [1, 2, 5, 10]
+  n_is: 262144          # proposal draws for VaR/ES (PINN and exact-density IS) and MC paths
+  n_track: 65536        # draws for the ES tracked during training
+  n_density: 32768      # exact samples for the density-error metric
+  n_long_only: 15       # random Dirichlet(1) portfolios, plus the equal-weight one
+  n_long_short: 4       # random long-short portfolios (weights sum to 1)
+  portfolio_seed: 123

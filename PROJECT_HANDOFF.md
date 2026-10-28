@@ -7,6 +7,32 @@
 
 ---
 
+## Status update (2026-10-28, later): Stage 2 rerun with 3 seeds; Stage 4 built
+
+- Notebooks 01–04 reran on Colab at a46e669. All results and main figures are now in the repo
+  (per-run ablation figures are gitignored; their metrics are kept).
+- **Stage 2b (n_gh = 48):** every VaR/ES error < 1% at 1/5/10 days; ES ≤ 0.42% across 3 seeds.
+- **Stage 2c, 3 seeds (ES₉₉ error, 1-day / 10-day):** baseline 0.18–0.30% / 0.06–0.16%;
+  linear residual 1–22% / 57–152%; gh8 12–15%; gh24 ≈ 2%; no normalisation ≈ 2.2% at 1 day.
+  **Tail-adaptive sampling gives no gain** (without it: 0.06–0.36% / ≈ 0.05%), so Stage 4 drops it.
+  Still to test: α = 99.9% and fat-jump parameters before removing it from the 1-D claim.
+- **Stage 3 on Colab** matches the local run (2-D FD second order; portfolio ES within 0.012% FD, 0.3% MC).
+- **Stage 4 is built, not yet trained on a GPU:** `pinn_tailrisk/pinn_nd.py`, `scripts/stage4_pinn_nd.py`,
+  `scripts/stage4_summary.py`, `configs/stage4_pinn_nd.yaml`, notebook 05, `tests/test_pinn_nd.py`.
+  - Residual verified: with the exact density plugged in it is ~0 and falls with quadrature nodes
+    (median 5e-4 / 1.6e-5 / 1.5e-7 at 24 / 48 / 96 nodes).
+  - Importance proposal (Student-t mixture over 0–3 jumps): ESS 75–80% against the exact density.
+  - Normalisation loss is log(mass)²: (mass − 1)² overflowed for the untrained net and gave NaNs.
+  - Collocation/IC proposal uses df = 30 (IS keeps df = 5). With df = 5, IC targets reached log p = −7000 at d = 10,
+    and on d = 2 (2000 CPU steps) PDE loss was 0.68 vs 0.21, ES₉₉ 10-day error 115% vs 42%.
+  - CPU sanity check at 2000 steps: nd code at d = 1 matches the 1-D trainer (ES₉₉ 6.6% / 2.8% vs 10.8% / 3.7%
+    at 1 / 10 days), so no implementation gap; d = 2 is harder (12% / 42%). The full 20k-step T4 run decides it.
+    If d ≥ 2 stays above ~2%, first try: equal weights on the 0–3 jump components of the collocation proposal
+    (more tail points, like the 1-D uniform box) and more steps.
+  - Portfolio VaR/ES: 20 portfolios per d (equal weight, 15 long-only, 4 long-short), exact 1-D truth,
+    compared with MC and with IS using the exact density (the sampling floor) on the same budget (262k).
+- Next: run notebook 05 (≈ 3–3.5 h on a T4, resumable), review, then Stage 5 (amortised over θ and w, latency benchmark).
+
 ## Status update (2026-10-28): supersedes §0, §5.1 and §7 where they differ
 
 - Stage 2 has run on Colab (T4). FD/MC match exact (FD ES error ≤ 2e-4). PINN with 24 jump nodes reached 0.18% ES₉₉ at 10 d but 1.8% at 1 d.

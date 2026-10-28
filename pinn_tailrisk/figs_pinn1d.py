@@ -19,6 +19,8 @@ def plot_training(hist: pd.DataFrame, stage: str):
     ax = axes[0]
     for k, c, lab in [("pde", P.VIOLET, "PIDE residual"), ("ic", P.MAGENTA, "initial condition"),
                       ("norm", P.GREEN, "normalisation"), ("bc", P.YELLOW, "boundary decay")]:
+        if k not in hist:   # the d-asset PINN has no boundary term
+            continue
         pos = hist[k] > 0
         if pos.sum() < 2:   # a term that is exactly zero has no place on a log axis
             last = int(hist.step[pos].max()) if pos.any() else 0
@@ -63,23 +65,27 @@ def plot_bulk_vs_tail(dens_err: dict, horizons, stage: str):
     return P.savefig(fig, stage, "fig04_bulk_vs_tail")
 
 
-def plot_var_es_error(risk: pd.DataFrame, horizons, alphas, stage: str):
-    """Rows VaR / ES, columns horizons; method identity stays in color + marker."""
+def plot_var_es_error(risk: pd.DataFrame, horizons, alphas, stage: str, methods=("pinn", "fd"),
+                      ylabel="{} error| vs exact (%)", name="fig05_var_es_error"):
+    """Rows VaR / ES, columns horizons; method identity stays in color + marker.
+
+    risk has one row per (h, alpha) and columns var_rel_<m>, es_rel_<m>.
+    """
     fig, axes = plt.subplots(2, len(horizons), figsize=(11, 5.6), sharey=True, sharex=True)
     ai = np.arange(len(alphas))
-    for i, (meas, name) in enumerate([("var", "VaR"), ("es", "ES")]):
+    for i, (meas, mname) in enumerate([("var", "VaR"), ("es", "ES")]):
         for j, h in enumerate(horizons):
             ax, r = axes[i, j], risk[risk.h == h]
-            for m in ("pinn", "fd"):
+            for m in methods:
                 ax.plot(ai, 100 * r[f"{meas}_rel_{m}"].abs().clip(lower=1e-7), marker=P.METHOD[m]["marker"],
                         ms=6, **P.style(m, lw=1.2))
             ax.axhline(1.0, color=P.AXIS, lw=0.8)
-            ax.set(yscale="log", title=f"{name}, {h}-day")
+            ax.set(yscale="log", title=f"{mname}, {h}-day")
             if i == 1:
                 ax.set(xticks=ai, xticklabels=[f"{a*100:g}%" for a in alphas], xlabel=r"confidence level $\alpha$")
-        axes[i, 0].set_ylabel(f"|{name} error| vs exact (%)")
+        axes[i, 0].set_ylabel("|" + ylabel.format(mname))
     axes[0, -1].text(ai[-1], 1.15, "1%", ha="right", va="bottom", fontsize=8, color=P.INK_2)
     axes[0, 0].legend(loc="lower left")
     P.panel_labels(axes.ravel())
     fig.tight_layout()
-    return P.savefig(fig, stage, "fig05_var_es_error")
+    return P.savefig(fig, stage, name)

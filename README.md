@@ -12,6 +12,7 @@ pinn_tailrisk/     library (imported by scripts and notebooks)
   fd.py            finite-difference PIDE solver (CN + AB2 IMEX, FFT jump convolution)
   fd2d.py          2-asset FD solver (Douglas ADI, FFT line-kernel jump convolution)
   pinn.py          physics-informed network, losses, tail-adaptive training
+  pinn_nd.py       d-asset PINN: whitened inputs, Hutchinson trace, importance-sampled VaR/ES
   risk.py          VaR/ES from density grids, weighted grids, samples, Gaussian
   figs_pinn1d.py   Stage 2b result-only figures (redrawable without retraining)
   plotting.py      project-wide figure style; one fixed color + linestyle per method
@@ -44,6 +45,8 @@ py -3.11 -m venv .venv
 | 2b figures only | `python scripts/replot_pinn1d.py [--tag name]` | fig01, fig04, fig05 from saved results |
 | 2c ablations (3 seeds) | notebook `03_phase1_stage2c_ablations` | `figures/stage2_ablation/` |
 | 3 multi-asset ground truth | `python scripts/stage3_multiasset_reference.py` | `figures/stage3_multiasset_reference/` |
+| 4 d-asset PINN | `python scripts/stage4_pinn_nd.py --d D [--trace exact --tag exact]` | `figures/stage4_pinn_nd_d<D>/` |
+| 4 scaling summary | `python scripts/stage4_summary.py` | `figures/stage4_summary/` |
 
 Regenerate notebooks after editing `tools/make_notebooks.py`: `python tools/make_notebooks.py`.
 

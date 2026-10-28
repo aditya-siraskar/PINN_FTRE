@@ -314,24 +314,76 @@ display(w.style.format(precision=5))
 '''),
 ])
 
+# ------------------------------------------------------------------ 05
+notebook("05_phase2_stage4_pinn_nd.ipynb", [
+    header("05_phase2_stage4_pinn_nd.ipynb", "05 · Stage 4: multi-asset PINN and scaling study",
+           "Phase 2: multi-asset",
+           "PINN for the d-dimensional common-jump PIDE at d = 1, 2, 5, 10: joint-density and portfolio VaR/ES accuracy "
+           "against the exact mixture, Monte Carlo at the same budget, and training time and memory vs d (RQ1, RQ4).",
+           "`figures/stage4_pinn_nd_d<d>/fig01–fig04`, `figures/stage4_summary/`, `results/stage4_*`"),
+    code(SETUP),
+    code(IMPORTS),
+    md("""
+## 1. Method in one paragraph
+Same recipe as the 1-D PINN (log density, log residual × t, start at t0 from the exact density, 48 Gauss–Hermite
+nodes for the jump integral, which stays 1-D because the jump is common). New for d dimensions: inputs whitened by
+the Cholesky factor of Σt; the trace term tr(Σ∇²u) is exact for d ≤ 4 and a **Hutchinson** estimate (4 Rademacher'''
+probes) above; no box domain: collocation, the normalisation integral and portfolio VaR/ES all use one importance
+proposal (Student-t mixture over 0–3 jumps, built from the PIDE coefficients only). Tail-adaptive sampling is
+dropped (Stage 2c: no gain). Every portfolio is checked against its **exact** 1-D law.
+
+Each run also reports **IS with the exact density** on the same draws: the sampling floor. PINN error above that
+floor is density error.
+"""),
+    code("print(open('configs/stage4_pinn_nd.yaml').read())"),
+    md("""
+## 2. Train one run per dimension
+Resumable: finished runs are skipped, so a disconnect only costs the run in progress.
+Rough T4 estimate (not yet measured): 25–45 min per run, **about 3–3.5 h for all five**.
+Run them across sessions if needed. For a quick pass set `STEPS = 5000`.
+"""),
+    code(r'''
+import pathlib
+STEPS = 20000
+RUNS = [(1, ""), (2, ""), (5, ""), (10, ""), (5, "exact")]   # (d, tag); "exact" forces the exact trace
+for d, tag in RUNS:
+    run = f"stage4_pinn_nd_d{d}" + (f"_{tag}" if tag else "")
+    if pathlib.Path(f"results/{run}/metrics.json").exists():
+        print("skip", run); continue
+    extra = f"--trace exact --tag {tag}" if tag else ""
+    !python scripts/stage4_pinn_nd.py --d {d} --steps {STEPS} {extra}
+'''),
+    md("""
+## 3. Per-dimension figures and what to check
+
+| Figure | Pass criterion |
+|---|---|
+| fig01_training | all loss terms fall; tracked ES₉₉ error of the equal-weight portfolio drops below 1% |
+| fig02_density_slices | PINN (blue) on the exact (dashed) along the jump direction β, including the jump shoulder, and across it |
+| fig03_portfolio_es | PINN points near the grey IS floor and below 1% for every portfolio; MC (aqua) for scale |
+| fig04_var_es_error | median VaR/ES error over portfolios below 1% at every α and horizon |
+"""),
+    code(r'''
+for d in (1, 2, 5, 10):
+    print(f"======== d = {d}")
+    show_figures(f"stage4_pinn_nd_d{d}")
+'''),
+    md("## 4. Scaling summary (accuracy, time and memory vs d; Hutchinson vs exact trace)"),
+    code(r'''
+!python scripts/stage4_summary.py
+show_figures("stage4_summary")
+'''),
+    md("## 5. Numbers"),
+    code(r'''
+display(pd.read_csv("results/stage4_summary.csv").style.format(precision=4))
+for d in (1, 2, 5, 10):
+    m = load_metrics(f"stage4_pinn_nd_d{d}")
+    print(d, m["trace"], f'{m["train_time_s"]/60:.1f} min', f'{m["peak_mem_mb"]:.0f} MB', m["importance_sampling"], m["timing"]["1d"])
+'''),
+])
+
 # ------------------------------------------------------------------ planned stages
 PLANNED = [
-    ("05_phase2_stage4_pinn_nd.ipynb", "05 · Stage 4: multi-asset PINN and scaling study",
-     "Phase 2: multi-asset",
-     "PINN for the d-dimensional PIDE (d = 1, 2, 5, 10); tail accuracy, training cost and memory vs d (RQ1, RQ4).",
-     "`figures/stage4_pinn_nd/`",
-     """
-**To build:** `pinn_tailrisk/pinn_nd.py` and `scripts/stage4_pinn_nd.py`.
-- Inputs: x whitened by the Cholesky factor of Σt (the d-dim similarity variable), plus log t. Output: log p.
-- Residual: u_t + a·∇u − ½ tr(Σ(∇²u + ∇u∇uᵀ)) − λ(S − 1), with S by 1-D Gauss–Hermite along β.
-- Hutchinson trace estimator for d ≥ 5. Normalisation and portfolio VaR/ES via self-normalised importance sampling (Student-t proposal).
-
-**Planned figures:**
-- fig01 training curves per d
-- fig02 ES₉₉ error vs d (PINN, MC at fixed budget, FD where feasible)
-- fig03 training time and GPU memory vs d
-- fig04 marginal and portfolio densities vs exact
-""", None),
     ("06_phase3_stage5_realtime_amortised.ipynb", "06 · Stage 5: amortised, real-time risk (headline)",
      "Phase 3: real-time",
      "One network over the parameter space θ (and portfolio weights w); latency per VaR/ES query vs Monte Carlo at equal tail error (RQ5).",
@@ -343,7 +395,7 @@ PLANNED = [
 
 **Planned figures:**
 - fig01 accuracy across θ (error heatmap)
-- fig02 latency vs MC at matched error
+- fig02 latency vs MC at matched error'''
 - fig03 break-even query count (training cost amortised)
 - fig04 Euler risk contributions ∂ES/∂wᵢ via autodiff vs finite-difference bumps
 """, None),
