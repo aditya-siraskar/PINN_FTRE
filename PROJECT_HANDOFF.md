@@ -7,6 +7,31 @@
 
 ---
 
+## Status update (2026-10-29, Stage 7 results: all stages done)
+Run on Kaggle (T4; Colab GPU quota was used up). PINN training ~10–12 min, data-only fit ~2.5 min.
+
+**RQ3, physics vs data-only** (ES99 error, median over portfolios; the PINN uses no samples):
+
+| | PINN 1d / 5d / 10d | data-only NN, N = 10⁴ | N = 10⁵ | N = 10⁶ | MC on the same 10⁶ |
+|---|---|---|---|---|---|
+| d = 2 | 1.3 / 0.9 / 0.08% | 13 / 2.1 / 3.8% | 5.0 / 0.8 / 2.5% | 1.3 / 0.4 / 0.18% | 0.8 / 1.2 / 1.1% |
+| d = 5 | 1.8 / 2.2 / 0.8% | 13 / 5.7 / 9.2% | 3.3 / 1.8 / 3.2% | 2.8 / 0.8 / 0.8% | 2.1 / 0.7 / 1.6% |
+
+The PINN is worth roughly 10⁵–10⁶ exact samples (data-only matches it at 5 days near N ≈ 6.6·10⁴; at 1 and 10 days
+not before 10⁶). With realistic sample sizes (10³–10⁴, i.e. years of daily data) data-only errors are 5–60%.
+Caveat for the thesis: with a known model one can also simulate; the PINN's edge is a smooth, normalised,
+differentiable density at no sampling cost, and amortisation over θ (Stage 5).
+
+**Failure cases** (d = 2, ES99 error 1d / 5d / 10d):
+- λ = 50/yr, proposal k ≤ 3: 0.6 / 0.7 / 0.8%. *Degrades, does not break* (P(more jumps) = 14% at 10d, but the
+  PIDE residual still trains there); widening to k ≤ 10 gives 0.3 / 0.07 / 0.12%.
+- t₀ = 0.05 day: **5.2%** ES and 21% VaR at 1 day (tail log-density error 0.13); recovers to 0.9% / 0.25% at 5 / 10 days.
+- Collected: d = 5 amortised worst θ 3.6 / 4.7 / 10% (Stage 5); d = 10 5 / 44 / 62% (Stage 4).
+- Far tail: PINN log p − log q turns positive beyond ~20 whitened units while the exact one falls to −50…−230;
+  this is the Stage 6 S&P blow-up, handled by the r_max = 6 trust region.
+
+**Project status:** Stages 1–7 done. Remaining: thesis write-up, final review slides, v1.0 tag.
+
 ## Status update (2026-10-28, Stage 7 built)
 New: `pinn_tailrisk/data_only.py` (DataOnlyTrainer), `scripts/stage7_ablation.py`, `configs/stage7_ablation.yaml`,
 `tests/test_stage7.py`, notebook 08. 28 tests pass. CPU smoke test (`--quick`) of every part passes; awaiting the T4 run.
