@@ -47,6 +47,9 @@ else:
 ROOT = f"{BASE}/PINN_FTRE"
 if not os.path.exists(ROOT):
     !git clone -q {REPO_URL} "{ROOT}"
+    if not os.path.exists(ROOT):
+        raise RuntimeError("git clone failed: no internet. Kaggle: Settings > Internet on (phone-verified account), "
+                           "then Run > Restart & clear outputs and run again.")
 else:
     rc = os.system(f'git -C "{ROOT}" pull -q --ff-only')
     if rc != 0:   # usually: result files on Drive that have since been committed to GitHub
