@@ -551,21 +551,97 @@ for market in ("nifty", "sp"):
 """),
 ])
 
-# ------------------------------------------------------------------ planned stages
-PLANNED = [
-    ("08_phase4_stage7_ablation_release.ipynb", "08 · Stage 7: physics vs data, failure cases, release",
-     "Phase 4: empirical and thesis",
-     "Same network trained on samples only (maximum likelihood) vs physics-informed, across data sizes (RQ3); failure cases; final thesis figures.",
-     "`figures/stage7_final/`",
-     """
-**To build:** a data-only density network (same architecture, trained on samples by maximum likelihood) and a loop over sample sizes; collect all stage metrics into the final thesis tables.
+# ------------------------------------------------------------------ 08
+notebook("08_phase4_stage7_ablation_release.ipynb", [
+    header("08_phase4_stage7_ablation_release.ipynb", "08 · Stage 7: physics vs data, failure cases, final scorecard",
+           "Phase 4: empirical and thesis",
+           "Does the physics help (RQ3)? The Stage 4 PINN, trained on no samples, against the same network fitted to N exact "
+           "samples by maximum likelihood (N = 10³…10⁶) and against Monte Carlo on those samples. Then the cases where the "
+           "method breaks, and one scorecard over Stages 2–7 for the thesis.",
+           "`figures/stage7_physics_vs_data_d{2,5}/`, `figures/stage7_failure_<case>/`, `figures/stage7_final/`; same under `results/`"),
+    code(SETUP),
+    code(IMPORTS),
+    md("""
+## 1. Method in one paragraph
+**Physics vs data-only.** Same d-asset family and network as Stage 4 (d = 2 and 5). The PINN learns from the PIDE and
+the exact density at t₀ only. The **data-only NN** is the identical network, optimiser, schedule, step count and
+normaliser estimator, but its loss is the negative log-likelihood of N exact samples spread over 16 times in
+[t₀, T] (13 log-spaced + the 1/5/10-day horizons), with 20% held out for early stopping. N = 10³, 10⁴, 10⁵, 10⁶,
+three seeds each. **Monte Carlo on the same samples** uses the N/16 samples at each horizon directly. All models are
+weighted on the *same* importance draws, so the gaps are model gaps. The output is the N at which data alone matches
+the PINN.
 
-**Planned figures:**
-- fig01 ES₉₉ error vs number of samples, physics vs data-only
-- fig02 failure cases (high λ, tiny t0, very wide domain)
-- fig03 summary scorecard across stages
-""", None),
-]
+**Failure cases** (d = 2, one change each): λ = 50/yr with the default proposal (k ≤ 3 jumps), the same with the
+proposal widened to k ≤ 10, and t₀ = 0.05 day. Collected from earlier stages: d = 10 (Stage 4) and the worst θ of the
+d = 5 amortised model (Stage 5). The far-tail probe shows why Stage 6 needed the r_max trust region.
+"""),
+    code("print(open('configs/stage7_ablation.yaml').read())"),
+    md("""
+## 2. Run (resumable)
+Estimated, not yet measured, on a T4: **≈ 30 min for d = 2, ≈ 35 min for d = 5** (PINN 10–13 min + 12 data-only
+fits of ~1.5 min), **≈ 11 min per failure case**, summary < 1 min; about 1.7 h in total. Finished parts are skipped;
+inside the data part, finished data-only fits (`results/stage7_physics_vs_data_d<d>/runs/`) and the trained PINN
+(`model.pt`) are reused, so a disconnect loses at most one fit.
+"""),
+    code(r"""
+import pathlib
+for d in (2, 5):
+    if pathlib.Path(f"results/stage7_physics_vs_data_d{d}/metrics.json").exists():
+        print("skip physics vs data, d =", d); continue
+    !python scripts/stage7_ablation.py --part data --d {d}
+for case in ("high_lam", "high_lam_kfix", "tiny_t0"):
+    if pathlib.Path(f"results/stage7_failure_{case}/metrics.json").exists():
+        print("skip", case); continue
+    !python scripts/stage7_ablation.py --part failure --case {case}
+!python scripts/stage7_ablation.py --part summary
+
+# d = 10 physics vs data: not pursued (Stage 4 breakdown point). Skeleton:
+# !python scripts/stage7_ablation.py --part data --d 10 --steps 40000
+"""),
+    md("""
+## 3. Figures and what to check
+
+| Figure | Pass criterion |
+|---|---|
+| physics_vs_data fig02_es_vs_samples | the blue PINN line (no samples) sits below the red data-only curve up to a large N; Monte Carlo on the same samples is the honest data baseline |
+| physics_vs_data fig03_density_slices | data-only density follows the exact one where samples exist and departs in the far tail; the PINN follows it throughout |
+| physics_vs_data fig04_tail_density_error | data-only tail error falls with N; the PINN's (horizontal) is reached only at large N |
+| failure_high_lam fig02 | large ES error at 5–10 days (k ≤ 3 proposal misses the 4+ jump region); `high_lam_kfix` restores ≲ 1–2% |
+| failure_tiny_t0 fig02 | whatever happens is reported: errors at 1 day show whether the sharper start hurts |
+| final fig01_scorecard | one row per stage/setting; PINN (blue) vs its baseline; 1% reference line |
+| final fig02_failure_cases | (a) where the error leaves the 1% band; (b) PINN log p − log q rises above 0 in the far tail, the exact density does not |
+"""),
+    code(r"""
+for st in ["stage7_physics_vs_data_d2", "stage7_physics_vs_data_d5", "stage7_failure_high_lam",
+           "stage7_failure_high_lam_kfix", "stage7_failure_tiny_t0", "stage7_final"]:
+    print("========", st)
+    show_figures(st)
+"""),
+    md("## 4. Numbers"),
+    code(r"""
+for d in (2, 5):
+    m = load_metrics(f"stage7_physics_vs_data_d{d}")
+    print(f"== d = {d}: PINN trained {m['physics_train_time_s'] / 60:.0f} min; data-only fit ~{m['data_only_train_s_median']:.0f} s")
+    print("   N at which data-only matches the PINN's ES99 error:", m["n_to_match_physics_es99"])
+    a = pd.DataFrame(m["data_only_es"]); a = a[a.alpha == 0.99]
+    display(a.pivot_table(index=["model", "N"], columns="h", values="median").style.format("{:.2%}"))
+    p = pd.DataFrame(m["physics_es"]); p = p[p.alpha == 0.99]
+    display(p.pivot_table(index="model", columns="h", values="es_abs").style.format("{:.2%}"))
+print("== failure cases (ES99 error, median over portfolios)")
+display(pd.read_csv("results/stage7_final/failure_cases.csv").style.format(precision=4))
+print("== scorecard")
+display(pd.read_csv("results/stage7_final/scorecard.csv").style.format(precision=4))
+"""),
+    md("""
+## 5. Release checklist
+- [ ] all notebooks 00–08 run top to bottom from a fresh Colab
+- [ ] `figures/` and `results/` committed (zip from Colab → local → push)
+- [ ] README reproduce table and PROJECT_HANDOFF status current
+- [ ] tag the thesis version: `git tag -a v1.0 -m "thesis results" && git push --tags`
+"""),
+])
+
+PLANNED = []
 
 for fname, title, phase, goal, outputs, plan, live in PLANNED:
     cells = [header(fname, title, phase, goal, outputs), code(SETUP), code(IMPORTS),

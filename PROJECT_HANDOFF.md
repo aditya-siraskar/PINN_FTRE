@@ -7,6 +7,23 @@
 
 ---
 
+## Status update (2026-10-28, Stage 7 built)
+New: `pinn_tailrisk/data_only.py` (DataOnlyTrainer), `scripts/stage7_ablation.py`, `configs/stage7_ablation.yaml`,
+`tests/test_stage7.py`, notebook 08. 28 tests pass. CPU smoke test (`--quick`) of every part passes; awaiting the T4 run.
+
+Stage 7 has three parts:
+- **Physics vs data-only (RQ3)**, d = 2 and 5.
+  - The Stage 4 PINN is compared with the same network, optimiser and steps, fitted by maximum likelihood to N exact samples. N = 1e3 to 1e6, three seeds, early stopping on a 20% hold-out.
+  - Monte Carlo on the same samples is the third method.
+  - All models are weighted on common IS draws.
+  - Output: the N at which data alone matches the PINN.
+- **Failure cases**, d = 2, one change each:
+  - lam = 50/yr with the default proposal (k <= 3), where P(more jumps) at 10 days is 14%;
+  - the same with k_max = 10;
+  - t0 = 0.05 day.
+  - Also collected: d = 10 (Stage 4), the worst theta of the d = 5 amortised model (Stage 5), and a far-tail ray probe (log p - log q of the PINN vs exact).
+- **Scorecard** over Stages 2-7: `results/stage7_final/scorecard.csv` and fig01.
+
 ## Status update (2026-10-28, Stage 6 results)
 Colab T4 run at 922e3ce: about 23 min training per market. Evaluation was re-run with `--eval-only` after one fix.
 

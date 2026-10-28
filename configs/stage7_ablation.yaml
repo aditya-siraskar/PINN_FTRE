@@ -1,0 +1,27 @@
+# Stage 7: physics vs data-only (RQ3), failure cases, final scorecard.
+# The model family and the PINN settings are Stage 4's (configs/stage4_pinn_nd.yaml + base.yaml).
+data_only:
+  d_list: [2, 5]
+  n_list: [1000, 10000, 100000, 1000000]   # exact samples in total, spread evenly over the time grid
+  seeds: [0, 1, 2]
+  n_times: 13            # log-spaced times on [t0, T]; the evaluation horizons (1, 5, 10 days) are added
+  val_frac: 0.2          # held-out samples for early stopping (best validation NLL is kept)
+  n_val_norm: 4096       # fixed proposal draws per time for the validation normaliser
+  batch: 2048            # data points per step (= PINN collocation batch)
+  # network, optimiser, steps, normaliser draws: identical to the PINN (stage4_pinn_nd.yaml)
+
+failure:                 # d = 2, Stage 4 family, one change each
+  high_lam:              # crisis jump intensity; proposal still covers k <= 3 jumps
+    lam: 50.0
+  high_lam_kfix:         # same, proposal widened to the Poisson 1e-5 quantile of lam*T
+    lam: 50.0
+    k_max: 10
+  tiny_t0:               # start 10x closer to the Dirac initial condition
+    t0_days: 0.05
+
+eval:
+  alphas: [0.975, 0.99]
+  n_is: 262144           # common proposal draws: every model is weighted on the same draws
+  n_density: 32768       # exact samples for the log-density error
+  ray_radii: [2, 4, 6, 8, 10, 15, 20, 30, 40, 60, 80, 100, 150]   # far-tail probe (whitened units)
+  n_rays: 2000

@@ -18,6 +18,7 @@ pinn_tailrisk/     library (imported by scripts and notebooks)
   calibrate.py      maximum likelihood of the d-asset Merton model with a daily vol scale; EWMA filter
   benchmarks.py     Gaussian, HS, filtered HS, GARCH-t, GARCH-EVT, DCC-GARCH-t
   backtest.py       Kupiec, Christoffersen, FZ0 score, Diebold-Mariano
+  data_only.py      Stage 7 baseline: the PINN's network fitted to samples by maximum likelihood
   risk.py          VaR/ES from density grids, weighted grids, samples, Gaussian
   figs_pinn1d.py   Stage 2b result-only figures (redrawable without retraining)
   plotting.py      project-wide figure style; one fixed color + linestyle per method
@@ -54,6 +55,9 @@ py -3.11 -m venv .venv
 | 4 scaling summary | `python scripts/stage4_summary.py` | `figures/stage4_summary/` |
 | 5 amortised, real-time | `python scripts/stage5_amortised.py --d D [--eval-only]` | `figures/stage5_amortised_d<D>/` |
 | 6 real data, backtests | `python scripts/stage6_realdata.py --market nifty\|sp [--eval-only]` | `figures/stage6_realdata_<market>/` |
+| 7 physics vs data-only | `python scripts/stage7_ablation.py --part data --d 2\|5` | `figures/stage7_physics_vs_data_d<D>/` |
+| 7 failure cases | `python scripts/stage7_ablation.py --part failure --case high_lam\|high_lam_kfix\|tiny_t0` | `figures/stage7_failure_<case>/` |
+| 7 scorecard | `python scripts/stage7_ablation.py --part summary` | `figures/stage7_final/` |
 
 Regenerate notebooks after editing `tools/make_notebooks.py`: `python tools/make_notebooks.py`.
 
