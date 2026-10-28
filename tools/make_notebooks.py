@@ -24,16 +24,21 @@ def code(s):
 
 def badge(fname):
     return (f"[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]"
-            f"(https://colab.research.google.com/github/{REPO}/blob/main/notebooks/{fname})")
+            f"(https://colab.research.google.com/github/{REPO}/blob/main/notebooks/{fname}) "
+            f"[![Open In Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)]"
+            f"(https://kaggle.com/kernels/welcome?src=https://github.com/{REPO}/blob/main/notebooks/{fname})")
 
 
 SETUP = r'''
-# @title Setup: repo on Google Drive, install, GPU check  { display-mode: "form" }
-USE_DRIVE = True   # keep figures/results across Colab sessions (recommended)
+# @title Setup: repo on Google Drive (Colab) or /kaggle/working (Kaggle), install, GPU check  { display-mode: "form" }
+USE_DRIVE = True   # Colab: keep figures/results across sessions (recommended). Ignored on Kaggle.
 REPO_URL = "https://github.com/aditya-siraskar/PINN_FTRE"
 
 import os, sys
-if USE_DRIVE:
+ON_KAGGLE = os.path.exists("/kaggle/working")   # needs Settings > Internet on, Accelerator > GPU T4 x2
+if ON_KAGGLE:
+    BASE = "/kaggle/working"   # kept with the notebook's output when run via Save Version
+elif USE_DRIVE:
     from google.colab import drive
     drive.mount("/content/drive")
     BASE = "/content/drive/MyDrive"
@@ -52,7 +57,8 @@ else:
 sys.path.insert(0, ROOT)
 
 import torch
-print("torch", torch.__version__, "| GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "none (Runtime > Change runtime type > T4 GPU)")
+print("torch", torch.__version__, "| GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else
+      "none (Colab: Runtime > Change runtime type > T4 GPU; Kaggle: Settings > Accelerator > GPU T4 x2)")
 '''
 
 IMPORTS = r'''
@@ -559,6 +565,12 @@ notebook("08_phase4_stage7_ablation_release.ipynb", [
            "samples by maximum likelihood (N = 10³…10⁶) and against Monte Carlo on those samples. Then the cases where the "
            "method breaks, and one scorecard over Stages 2–7 for the thesis.",
            "`figures/stage7_physics_vs_data_d{2,5}/`, `figures/stage7_failure_<case>/`, `figures/stage7_final/`; same under `results/`"),
+    md("""
+**On Kaggle** (free GPU, 30 h/week): open with the Kaggle badge. Right panel → Settings: **Accelerator = GPU T4 x2**
+(not P100: recent PyTorch builds no longer support it), **Internet = on** (needs a phone-verified account).
+Then **Save Version → Save & Run All (Commit)**: it runs in the background for up to 12 h, so closing the
+browser does not stop it. When it finishes, open the version → **Output** → download `stage7_outputs.zip`.
+"""),
     code(SETUP),
     code(IMPORTS),
     md("""
@@ -633,7 +645,21 @@ print("== scorecard")
 display(pd.read_csv("results/stage7_final/scorecard.csv").style.format(precision=4))
 """),
     md("""
-## 5. Release checklist
+## 5. Package the outputs
+Stage 7 figures and results (without model weights) in one zip: on Kaggle it appears under **Output**; on Colab it is written to the repo folder.
+"""),
+    code(r"""
+import pathlib, zipfile
+zpath = pathlib.Path("/kaggle/working" if ON_KAGGLE else ".") / "stage7_outputs.zip"
+with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
+    for top in ("figures", "results"):
+        for f in sorted(pathlib.Path(top).glob("stage7_*/**/*")):
+            if f.is_file() and f.suffix != ".pt" and "_quick" not in str(f):
+                z.write(f)
+print(zpath.resolve(), f"{zpath.stat().st_size / 1e6:.1f} MB,", len(zipfile.ZipFile(zpath).namelist()), "files")
+"""),
+    md("""
+## 6. Release checklist
 - [ ] all notebooks 00–08 run top to bottom from a fresh Colab
 - [ ] `figures/` and `results/` committed (zip from Colab → local → push)
 - [ ] README reproduce table and PROJECT_HANDOFF status current

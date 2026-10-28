@@ -3,6 +3,12 @@
 Each notebook runs one stage of [`PLAN.md`](../PLAN.md) in Colab. Click a badge, switch to a **T4 GPU**
 (Runtime → Change runtime type), and run the setup cell first.
 
+**No Colab GPU left?** Every notebook also runs on **Kaggle** (free T4, 30 h/week): open it with
+`https://kaggle.com/kernels/welcome?src=https://github.com/aditya-siraskar/PINN_FTRE/blob/main/notebooks/<name>.ipynb`,
+set Settings → Accelerator **GPU T4 x2** and Internet **on**, then **Save Version → Save & Run All (Commit)**.
+The setup cell detects Kaggle and works in `/kaggle/working`; download the outputs from the version's **Output** tab
+(notebook 08 writes `stage7_outputs.zip`).
+
 | # | Phase | Stage | Notebook | Status |
 |---|---|---|---|---|
 | 00 | all | setup + tests | [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/aditya-siraskar/PINN_FTRE/blob/main/notebooks/00_setup_and_tests.ipynb) `00_setup_and_tests` | ready |
