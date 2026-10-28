@@ -7,6 +7,29 @@
 
 ---
 
+## Status update (2026-10-28, Stage 6 built)
+New modules: `data.py`, `calibrate.py`, `benchmarks.py`, `backtest.py`. Also `scripts/stage6_realdata.py`, `configs/stage6_realdata.yaml` and notebook 07. 26 tests pass.
+
+Data:
+- NIFTY: Reliance, HDFC Bank, Infosys, ICICI Bank, TCS.
+- S&P: XLK, XLF, XLE, XLV, XLI.
+- 2006-01 to 2026-10-27, test from 2018. Yahoo's 2005 NIFTY data has bad prints.
+- Log returns are committed in data/processed/.
+
+Calibration findings (development period, filtered model, equal jump loadings):
+- NIFTY: lam ≈ 20/yr, mu_J ≈ 0, sigma_J 2.4%.
+- S&P: lam ≈ 100/yr, mu_J −0.2%, sigma_J 0.9%.
+- Real-data jumps are small and frequent, a variance mixture rather than rare crashes.
+- With free loadings, the NIFTY jump attaches to Infosys alone (idiosyncratic), so loadings are fixed at 1.
+- Rolling (lam, mu_J) is weakly identified (the S&P unshrunk fit ranged 0.3–75/yr), so we use MAP shrinkage to the development fit.
+- The PINN box is set from development data only. T is 1.5 days and k_max is 8.
+
+Non-linear book: basket + short 3%-OTM 1-month put. Black–Scholes pricing, implied vol = EWMA basket vol, full revaluation.
+
+The "Merton, filtered (exact)" model uses the same IS draws as the PINN, so the gap between the two is the PINN error.
+
+The CPU smoke tests (120 days, 200–300 steps) ran end to end for both markets. The T4 run is pending.
+
 ## Status update (2026-10-28, Stage 5 results)
 Notebook 06 ran on a T4: training took 18 min (d = 2) and 22 min (d = 5), ≤ 0.45 GB. Median ES99 error over the (s, λ) grid, 1-day / 5-day / 10-day:
 - d = 2: PINN 1.3 / 0.8 / 0.7%; MC at the same N 1.8 / 0.9 / 0.8%; exact-IS floor 0.3–0.6%.

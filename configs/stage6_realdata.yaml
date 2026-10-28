@@ -1,0 +1,75 @@
+# Stage 6: real data. One-day-ahead VaR/ES of a linear and a non-linear portfolio,
+# rolling through the test period; the PINN is the Stage 5 amortised model trained on
+# each market's development-period calibration.
+markets:
+  nifty:
+    name: NIFTY basket
+    tickers: [RELIANCE.NS, HDFCBANK.NS, INFY.NS, ICICIBANK.NS, TCS.NS]   # largest NIFTY 50 constituents
+    labels: [Reliance, HDFC Bank, Infosys, ICICI Bank, TCS]
+  sp:
+    name: S&P sector ETFs
+    tickers: [XLK, XLF, XLE, XLV, XLI]
+    labels: [Tech, Financials, Energy, Health care, Industrials]
+
+data:
+  start: "2006-01-01"     # Yahoo's 2005 NIFTY prices have bad prints (Reliance +/-147% in July 2005)
+  end: "2026-10-28"       # fixed snapshot; data/processed/<market>_returns.csv is committed
+  test_start: "2018-01-01"  # develop on 2006-2017, test from 2018 (includes COVID)
+
+model:
+  ewma_decay: 0.94        # vol scale s_t (RiskMetrics)
+  warmup: 250             # days before the filtered calibration starts
+  beta_fixed: true        # equal jump loadings: one market-wide jump (free loadings put it on one stock)
+  window: 1000            # rolling calibration window (days)
+  refit: 21               # refit every month
+  prior_sd_log_lam: 0.5   # rolling (lam, mu_J) shrink towards the development fit
+  prior_sd_mu_j: 0.01
+  # PINN training box, from development-period quantities only (no look-ahead):
+  box_s: [0.75, 1.35]     # x [min, max] of s_t over the development period
+  box_log_lam: 1.5        # dev lam * exp(+/- 1.5)
+  box_mu_j: 0.025         # dev mu_J +/- 0.025
+
+portfolio:
+  weights: equal
+  put_strike: 0.97        # non-linear book: long basket + short 1 put, 3% OTM, 1 month, rolled monthly
+  put_months_days: 21
+  n_puts: 1.0
+
+benchmarks:
+  gauss_window: 250
+  hs_window: 500
+  garch_window: 1000
+  garch_refit: 21
+  dcc_refit: 252          # DCC (a, b) once a year (the univariate GARCHs monthly)
+  evt_u_frac: 0.10
+  n_scen: 32768           # scenarios per day for the Monte Carlo models (DCC, unfiltered Merton)
+
+eval:
+  alphas: [0.99, 0.975]
+  n_is: 32768             # PINN / exact-density IS draws per day
+
+pinn:                     # Stage 5 settings unless noted
+  width: 128
+  depth: 4
+  out_scale: 10.0
+  n_gh: 48
+  n_colloc: 2048
+  trace: exact
+  n_ic: 4096
+  n_norm: 4096
+  n_norm_t: 16
+  k_max: 8                # real-data jumps are small and frequent (lam ~ 20-100 per year)
+  colloc_scale: 1.5
+  is_scale: 1.2
+  df: 5.0
+  colloc_df: 30.0
+  w_pde: 1.0
+  w_ic: 10.0
+  w_norm: 10.0
+  steps: 30000
+  lr: 0.002
+  lr_min: 0.00002
+  log_every: 250
+  seed: 0
+  t0_days: 0.5
+  T_days: 1.5             # one-day-ahead only

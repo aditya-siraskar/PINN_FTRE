@@ -472,46 +472,87 @@ for d in (2, 5):
 '''),
 ])
 
+# ------------------------------------------------------------------ 07
+notebook("07_phase4_stage6_real_data.ipynb", [
+    header("07_phase4_stage6_real_data.ipynb", "07 · Stage 6: real data, non-linear portfolio and backtests",
+           "Phase 4: empirical",
+           "Rolling one-day-ahead VaR/ES on a 5-stock NIFTY basket and a 5-ETF S&P sector basket (2006–2026; test from 2018), "
+           "for a linear and a non-linear (basket + short put) book; the Stage 5 amortised PINN against Gaussian, HS, "
+           "filtered HS, GARCH-t, GARCH-EVT, DCC-GARCH-t and the unfiltered Merton model; Kupiec, Christoffersen, FZ0, "
+           "Diebold–Mariano (RQ2).",
+           "`figures/stage6_realdata_<market>/fig01–fig05`, `results/stage6_realdata_<market>/`"),
+    code(SETUP),
+    code(IMPORTS),
+    md("""
+## 1. Method in one paragraph
+**Model.** The 5-asset common-jump Merton model with a daily vol scale s_t (EWMA of whitened returns, data up to
+t−1): covariance s_t²Σ, jumps λ, μ_J, σ_J with equal loadings (a market-wide jump). This is exactly the density the
+Stage 5 PINN learns, with θ_t = (s_t, λ_t, μ_J,t).
+**Calibration.** Maximum likelihood on 2006–2017 (standard errors from the Hessian); over the test period (λ, μ_J)
+are refitted monthly on a 1000-day window with shrinkage to the development fit.
+**PINN.** Trained once per market on the development fit, over a θ box set from development data only. Every
+test day is one query: proposal draws at θ_t, PINN weights, VaR/ES of both books. The same draws weighted by the
+exact density give "Merton, filtered (exact)", so the gap between the two is the PINN error alone.
+**Books.** Linear: equal-weight basket. Non-linear: basket + short one 3%-OTM one-month put on the basket
+(Black–Scholes, implied vol = EWMA basket vol, rolled monthly), revalued in full on every scenario.
+
+Data: `data/processed/<market>_returns.csv` (committed snapshot of Yahoo prices), so reruns give the same numbers.
+"""),
+    code("print(open('configs/stage6_realdata.yaml').read())"),
+    md("""
+## 2. Calibrate, train and backtest (NIFTY, S&P)
+Resumable: finished markets are skipped. Estimated (not yet measured) **about 30–40 min per market on a T4**
+(PINN training ≈ 25 min; calibration, GARCH/DCC filters and ~2200 daily forecasts the rest).
+A crash after training can be re-evaluated without retraining: add `--eval-only`.
+"""),
+    code(r"""
+import pathlib
+STEPS = 30000
+for market in ("nifty", "sp"):
+    run = f"stage6_realdata_{market}"
+    if pathlib.Path(f"results/{run}/metrics.json").exists():
+        print("skip", run); continue
+    !python scripts/stage6_realdata.py --market {market} --steps {STEPS}
+
+# d = 10 basket: not pursued (Stage 4 breakdown point). Skeleton for future work:
+# add a 10-ticker market to configs/stage6_realdata.yaml, then
+# !python scripts/stage6_realdata.py --market nifty10 --steps 60000
+"""),
+    md("""
+## 3. Figures and what to check
+
+| Figure | Pass criterion |
+|---|---|
+| fig01_training | loss terms fall; tracked 1-day ES₉₉ error at the development market ≲ 1% |
+| fig02_data_calibration | s_t stays inside the PINN box (clipped days are counted in metrics); rolling λ, μ_J stable, near the development fit |
+| fig03_var_paths | VaR₉₉ follows volatility (filtered models) through COVID; unfiltered models react slowly and breach in clusters |
+| fig04_backtests | breach rates inside the Kupiec region; no ×; FZ0 bars show which models beat the PINN (negative) and whether significantly |
+| fig05_pinn_vs_exact | daily PINN/exact ES₉₉ gap ≲ 1–2% on both books (the PINN reproduces its own model on real states) |
+"""),
+    code(r"""
+for market in ("nifty", "sp"):
+    print(f"======== {market}")
+    show_figures(f"stage6_realdata_{market}")
+"""),
+    md("## 4. Numbers"),
+    code(r"""
+for market in ("nifty", "sp"):
+    m = load_metrics(f"stage6_realdata_{market}")
+    print(f"== {market}: test {m['test']} ({m['n_test']} days); dev fit lam={m['dev_fit']['lam']:.1f} "
+          f"mu_J={m['dev_fit']['mu_j']:.4f} sigma_J={m['dev_fit']['sigma_j']:.4f}; clipped days {m['n_clipped']}; "
+          f"train {m['train_time_s'] / 60:.0f} min")
+    print("   PINN vs exact ES:", {k: round(100 * v["median_abs"], 2) for k, v in m["pinn_vs_exact"].items()}, "% (median |gap|)")
+    bt = pd.read_csv(f"results/stage6_realdata_{market}/backtest.csv")
+    cols = ["model", "breaches", "rate", "p_uc", "p_cc", "fz0", "dm_p_vs_pinn", "es_ratio"]
+    for book in ("linear", "nonlinear"):
+        for a in (0.99, 0.975):
+            print(f"   {book}, alpha = {a}")
+            display(bt[(bt.book == book) & (bt.alpha == a)][cols].sort_values("fz0").style.format(precision=4).hide(axis="index"))
+"""),
+])
+
 # ------------------------------------------------------------------ planned stages
 PLANNED = [
-    ("07_phase4_stage6_real_data.ipynb", "07 · Stage 6: real data, non-linear portfolio and backtests",
-     "Phase 4: empirical",
-     "Rolling one-day-ahead VaR/ES on a NIFTY basket and an S&P sector-ETF basket (2005–), including an index-option position; benchmarks and backtests (RQ2).",
-     "`data/raw/`, `figures/stage6_empirical/`",
-     """
-**To build:** `pinn_tailrisk/data.py` (download and cache), `calibrate.py` (rolling maximum-likelihood fit of the Merton mixture), `benchmarks.py` (Gaussian, HS, FHS, GARCH-t via `arch`, DCC-GARCH-t, EVT-POT), `backtest.py` (Kupiec, Christoffersen, FZ0 score, Diebold–Mariano / MCS).
-
-Split: develop 2005–2017, out-of-sample 2018– (COVID included). No look-ahead: refit using past data only.
-
-**Planned figures:**
-- fig01 return series and rolling vol
-- fig02 tail log-histogram vs normal
-- fig03 rolling calibrated parameters
-- fig04 VaR/ES forecasts with breaches
-- fig05 backtest table and score comparison
-""",
-     r'''
-# Data preview: download and cache daily closes, then the first EDA figure
-import yfinance as yf, pathlib
-TICKERS = {"NIFTY": ["^NSEI", "RELIANCE.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS", "TCS.NS"],
-           "SP500": ["^GSPC", "XLK", "XLF", "XLE", "XLV", "XLY"]}
-pathlib.Path("data/raw").mkdir(parents=True, exist_ok=True)
-for name, tick in TICKERS.items():
-    f = pathlib.Path(f"data/raw/{name}.csv")
-    if not f.exists():
-        yf.download(tick, start="2005-01-01", auto_adjust=True, progress=False)["Close"].to_csv(f)
-px = pd.read_csv("data/raw/NIFTY.csv", index_col=0, parse_dates=True)
-r = np.log(px["^NSEI"]).diff().dropna()
-fig, axes = plt.subplots(1, 2, figsize=(11, 3.3))
-axes[0].plot(r.index, r * 100, color=P.INK_2, lw=0.5); axes[0].set(title="NIFTY 50 daily log return", ylabel="%")
-z = (r - r.mean()) / r.std(); bins = np.linspace(-10, 6, 80)
-h, e = np.histogram(z, bins, density=True); c = 0.5 * (e[1:] + e[:-1])
-axes[1].semilogy(c[h > 0], h[h > 0], lw=0, marker="o", ms=3.5, color=P.INK, label="NIFTY 50")
-from scipy import stats
-axes[1].semilogy(c, stats.norm.pdf(c), **P.style("gaussian")); axes[1].set(title="Standardised returns vs Gaussian", xlabel="z")
-axes[1].legend(); P.panel_labels(axes); fig.tight_layout()
-P.savefig(fig, "stage6_empirical", "fig01_nifty_eda"); plt.show()
-'''),
     ("08_phase4_stage7_ablation_release.ipynb", "08 · Stage 7: physics vs data, failure cases, release",
      "Phase 4: empirical and thesis",
      "Same network trained on samples only (maximum likelihood) vs physics-informed, across data sizes (RQ3); failure cases; final thesis figures.",

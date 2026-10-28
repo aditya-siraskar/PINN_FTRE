@@ -41,6 +41,10 @@ METHOD = {
     "garch_t":  dict(color=GREEN,   ls="-",         marker="P", label="GARCH-t"),
     "evt":      dict(color=VIOLET,  ls="--",        marker="X", label="EVT"),
     "data_nn":  dict(color=RED,     ls=":",         marker="*", label="Data-only NN"),
+    # Stage 6 variants keep their family's color with a dashed line
+    "fhs":      dict(color=MAGENTA, ls=(0, (4, 2)), marker="<", label="Filtered HS"),
+    "dcc":      dict(color=GREEN,   ls=(0, (4, 2)), marker="h", label="DCC-GARCH-t"),
+    "merton_unf": dict(color=MUTED, ls=(0, (1, 2)), marker=".", label="Merton, unfiltered"),
 }
 
 # Sequential (magnitude): one hue, light -> dark.

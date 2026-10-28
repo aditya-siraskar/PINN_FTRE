@@ -13,3 +13,5 @@ figures/*smoke*/
 results/*smoke*/
 figures/*cpucheck*/
 results/*cpucheck*/
+figures/*_quick/
+results/*_quick/

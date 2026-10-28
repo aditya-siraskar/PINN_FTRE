@@ -30,6 +30,8 @@ def plot_training(hist: pd.DataFrame, stage: str):
     ax.legend(loc="upper right")
     ax = axes[1]
     for h, c in [(1, HORIZON_COLORS[0]), (10, HORIZON_COLORS[2])]:
+        if f"es99_rel_{h}d" not in hist:   # Stage 6 tracks the 1-day horizon only
+            continue
         ax.semilogy(hist.step, hist[f"es99_rel_{h}d"], color=c, lw=1.5, label=f"{h}-day")
     ax.axhline(0.01, color=P.AXIS, lw=0.8)
     ax.text(hist.step.iloc[-1], 0.0105, "1%", ha="right", va="bottom", fontsize=8, color=P.INK_2)
