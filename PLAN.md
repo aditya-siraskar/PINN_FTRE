@@ -64,6 +64,8 @@ Metrics are unchanged (Kupiec, Christoffersen, Fissler–Ziegel), plus **latency
 
 **Fallback:** if *d* = 10 fails to train, report the dimension where the method breaks down. That is still a valid scaling result.
 
+**Scope decision (2026-10-28):** Stage 4 trained well up to *d* = 5 (median portfolio ES₉₉ error about 1%) and failed at *d* = 10 (5% at 1 day, 62% at 10 days). The fallback applies: *d* = 10 is reported as the breakdown point, and Stages 5–7 use *d* ≤ 5 (the real-data basket is 5 stocks). *d* = 10 appears only as commented future-work cells.
+
 ## Compute
 
 - Development: GTX 1650 (4 GB), FP32, for *d* ≤ 5 with batches of about 4–8k points

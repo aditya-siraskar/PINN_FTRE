@@ -12,8 +12,8 @@ Notebook 05 ran on a T4 (9–14 min per run, ~1 h total, ≤ 0.45 GB). Median po
 d = 1: 1.4% / 0.05%; d = 2: 0.7% / 1.0%; d = 5: 1.1% / 0.6% (Hutchinson) and 0.09% / 1.4% (exact trace);
 **d = 10: 5.2% / 62% (fails)**. MC at the same N: 0.2–1.6%. At d = 10 the PDE loss stalls at 0.76 (d = 5: 0.14) and the
 density is too wide along β, worsening with horizon; across β it is fine. Hutchinson ≈ exact at d = 5.
-Follow-up (notebook 05 §6): d = 10 with the exact trace (A), then also width 256 and 40k steps (B).
-If both fail: equal weights on the jump components in the collocation proposal, more probes.
+Decision: d = 10 is not pursued; it is reported as the breakdown point (PLAN fallback). Stages 5–7 use d ≤ 5.
+Notebook 05 §6 keeps the follow-up runs as a commented skeleton (exact trace; width 256 + 40k steps).
 
 ## Status update (2026-10-28, later): Stage 2 rerun with 3 seeds; Stage 4 built
 

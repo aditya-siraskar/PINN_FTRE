@@ -380,24 +380,20 @@ for d in (1, 2, 5, 10):
     print(d, m["trace"], f'{m["train_time_s"]/60:.1f} min', f'{m["peak_mem_mb"]:.0f} MB', m["importance_sampling"], m["timing"]["1d"])
 '''),
     md("""
-## 6. Follow-up: d = 10
-The first pass failed at d = 10 (ES₉₉ error 5% at 1 day, 62% at 10 days; PDE loss stalled at 0.76 vs 0.14 at d = 5;
-the density is too wide along β). Suspects: Hutchinson noise (4 probes, variance grows with d), then capacity/steps.
-Run A isolates the trace; run B adds capacity and steps. About 15 min (A) and 60 min (B) on a T4; resumable.
+## 6. d = 10: reported as the breakdown point (not pursued)
+At d = 10 the ES₉₉ error is 5% at 1 day and 62% at 10 days (PDE loss stalls at 0.76 vs 0.14 at d = 5; density too wide
+along β). Following the plan's fallback, the project stops at d = 5 and reports d = 10 as where the method breaks down.
+The cell below is a commented skeleton of the follow-up runs (exact trace; then width 256 + 40k steps) for future work.
 """),
     code(r'''
-FOLLOWUP = [("exact", "--trace exact"),                                     # A: exact trace only
-            ("exact_w256_40k", "--trace exact --width 256 --steps 40000")]  # B: + capacity and steps
-for tag, flags in FOLLOWUP:
-    if pathlib.Path(f"results/stage4_pinn_nd_d10_{tag}/metrics.json").exists():
-        print("skip", tag); continue
-    !python scripts/stage4_pinn_nd.py --d 10 --tag {tag} {flags}
-for tag in ("", "_exact", "_exact_w256_40k"):
-    if pathlib.Path(f"figures/stage4_pinn_nd_d10{tag}").exists():
-        print(f"======== d = 10{tag}"); show_figures(f"stage4_pinn_nd_d10{tag}")
-!python scripts/stage4_summary.py
-S = pd.read_csv("results/stage4_summary.csv")
-display(S[S.d == 10][["run", "trace", "width", "steps", "horizon", "es99_pinn", "es99_mc", "tail_mae_log", "train_min"]])
+# Future work, not run in this project. Uncomment to try the d = 10 follow-up (~75 min on a T4).
+# FOLLOWUP = [("exact", "--trace exact"),                                     # A: exact trace only
+#             ("exact_w256_40k", "--trace exact --width 256 --steps 40000")]  # B: + capacity and steps
+# for tag, flags in FOLLOWUP:
+#     if pathlib.Path(f"results/stage4_pinn_nd_d10_{tag}/metrics.json").exists():
+#         print("skip", tag); continue
+#     !python scripts/stage4_pinn_nd.py --d 10 --tag {tag} {flags}
+# !python scripts/stage4_summary.py
 '''),
 ])
 
