@@ -1,5 +1,6 @@
 % IEEE conference paper. Compile on Overleaf (IEEEtran class and IEEEtran.bst are built in):
-% upload the repo, set paper/main.tex as the main file. Figures come from ../figures/<stage>/<name>.pdf.
+% upload this paper/ folder (main.tex, references.bib, figures/) as a new project.
+% figures/ holds copies of the three figures from ../figures/; refresh them if the results change.
 \documentclass[conference]{IEEEtran}
 \usepackage{cite}
 \usepackage{amsmath,amssymb}
@@ -9,7 +10,7 @@
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
 
-\graphicspath{{../figures/}}
+\graphicspath{{figures/}{../figures/}}   % paper/figures/ holds copies, so this folder compiles on its own
 \newcommand{\ES}{\mathrm{ES}}
 \newcommand{\VaR}{\mathrm{VaR}}
 % Placeholder still to be filled in: renders in red so it cannot slip into the submitted version.
