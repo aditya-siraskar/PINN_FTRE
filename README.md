@@ -326,14 +326,8 @@ and marker, so figures stay readable in grayscale print.
 
 ---
 
-## Citation
+## Authors
 
-```bibtex
-@mastersthesis{siraskar2026pinn,
-  author = {Siraskar, Aditya and Sinha, Utkarsh and Sharma, Aditya},
-  title  = {Physics-Informed Neural Networks for Financial Tail-Risk Estimation},
-  school = {M.Tech research project, supervised by Dr. Jaykrishna Joshi},
-  year   = {2026},
-  url    = {https://github.com/aditya-siraskar/PINN_FTRE}
-}
-```
+**Aditya Siraskar, Utkarsh Sinha, Aditya Sharma**
+
+M.Tech Research Project, under the guidance of Dr. Jaykrishna Joshi.
