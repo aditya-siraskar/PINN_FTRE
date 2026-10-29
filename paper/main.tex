@@ -8,9 +8,19 @@
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{xcolor}
+\usepackage{placeins}
 \usepackage[hidelinks]{hyperref}
 
 \graphicspath{{figures/}{../figures/}}   % paper/figures/ holds copies, so this folder compiles on its own
+% Let floats fill more of a page, so figures and tables stay near their text.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\dbltopfraction}{0.9}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.8}
+\renewcommand{\dblfloatpagefraction}{0.8}
+\setcounter{topnumber}{3}
+\setcounter{dbltopnumber}{2}
+
 \newcommand{\ES}{\mathrm{ES}}
 \newcommand{\VaR}{\mathrm{VaR}}
 % Placeholder still to be filled in: renders in red so it cannot slip into the submitted version.
@@ -163,13 +173,31 @@ DCC-GARCH-$t$ and unfiltered Merton. All training runs on one NVIDIA T4 GPU with
 % ================================================================================================
 \section{Results}
 
+% Wide figures go first: a figure* can only appear at the top of a page after the one where it is defined,
+% so defining them here keeps them next to their subsections instead of after the references.
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.9\textwidth]{stage7_physics_vs_data_d2/fig02_es_vs_samples.pdf}
+  \caption{ES$_{99}$ error against the number of exact samples ($d = 2$): data-only network (red), Monte Carlo on the
+    same samples (green), and the PINN, which uses none (blue).}
+  \label{fig:physdata}
+\end{figure*}
+
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.9\textwidth]{stage7_final/fig02_failure_cases.pdf}
+  \caption{(a) ES$_{99}$ error by failure case and horizon. (b) Maximum over 2{,}000 directions of $\log p - \log q$
+    for the PINN and the exact density: the PINN turns positive beyond about 20 whitened units.}
+  \label{fig:failure}
+\end{figure*}
+
 \subsection{One Dimension and Ablations}
 The 1-D PINN recovers every VaR and ES from 95\% to 99.9\% within 1\% (ES$_{99}$: 0.30/0.42/0.16\% at 1/5/10 days)
 after 8.6 minutes of training. Table~\ref{tab:ablation} removes one component at a time. The log-form residual is
 essential, quadrature resolution sets the short-horizon error, and tail-adaptive sampling gives no gain. Finite
 differences remain faster and more accurate in 1-D.
 
-\begin{table}[t]
+\begin{table}[!t]
   \caption{1-D Ablations: ES$_{99}$ Error, Range Over Three Seeds}
   \label{tab:ablation}
   \centering
@@ -192,7 +220,7 @@ time almost flat in $d$, a regime where a 2-D finite-difference grid already tak
 At $d = 10$ the PDE loss stalls and the density is too wide along $\beta$, giving 62\% error at 10 days. We report
 $d = 10$ as the breakdown point of this architecture and budget.
 
-\begin{table}[t]
+\begin{table}[!t]
   \caption{Scaling: Median ES$_{99}$ Error at 1 Day / 10 Days}
   \label{tab:scaling}
   \centering
@@ -208,7 +236,7 @@ $d = 10$ as the breakdown point of this architecture and budget.
   \end{tabular}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[!t]
   \centering
   \includegraphics[width=\linewidth]{stage4_summary/fig01_scaling.pdf}
   \caption{ES$_{99}$ error against dimension: PINN, Monte Carlo at the same budget and the sampling floor.}
@@ -228,7 +256,7 @@ Against its own model evaluated with the exact density on the same draws, the PI
 therefore measures the model. It passes Kupiec at 99\% on both markets and beats Gaussian, HS and unfiltered Merton
 on FZ0, but ranks behind volatility-filtered models with fat-tailed innovations, and it is conservative at 97.5\%.
 
-\begin{table}[t]
+\begin{table}[!t]
   \caption{99\% Backtests, Linear Basket, 2018--2026 (FZ0: Lower Is Better)}
   \label{tab:backtest}
   \centering
@@ -254,7 +282,7 @@ Table~\ref{tab:physdata} and Fig.~\ref{fig:physdata} compare the PINN, trained o
 network trained on $N$ exact samples. The data-only network needs $10^5$--$10^6$ samples to match the PINN, and at
 realistic sizes ($10^3$--$10^4$) its errors are 5--60\%. Results at $d = 5$ are similar.
 
-\begin{table}[t]
+\begin{table}[!t]
   \caption{Physics Versus Data, $d = 2$: Median ES$_{99}$ Error}
   \label{tab:physdata}
   \centering
@@ -271,14 +299,6 @@ realistic sizes ($10^3$--$10^4$) its errors are 5--60\%. Results at $d = 5$ are 
   \end{tabular}
 \end{table}
 
-\begin{figure*}[t]
-  \centering
-  \includegraphics[width=0.9\textwidth]{stage7_physics_vs_data_d2/fig02_es_vs_samples.pdf}
-  \caption{ES$_{99}$ error against the number of exact samples ($d = 2$): data-only network (red), Monte Carlo on the
-    same samples (green), and the PINN, which uses none (blue).}
-  \label{fig:physdata}
-\end{figure*}
-
 \subsection{Failure Cases}
 A crisis jump rate ($\lambda = 50$/yr) with a proposal covering only three jumps degrades the error only to 0.8\%,
 and widening the proposal to ten jumps restores 0.1\%. A start time ten times closer to $t = 0$ fails at short
@@ -286,14 +306,6 @@ horizons (5.2\% ES and 21\% VaR error at 1 day) and recovers by 10 days. The far
 Fig.~\ref{fig:failure}(b) explains a real-data failure: outside its training region the PINN's log density decays
 more slowly than the heavy-tailed proposal, so a single far draw can take all the importance weight. This occurred
 once on the S\&P basket (2022-06-16) and is removed by the trust region.
-
-\begin{figure*}[t]
-  \centering
-  \includegraphics[width=0.9\textwidth]{stage7_final/fig02_failure_cases.pdf}
-  \caption{(a) ES$_{99}$ error by failure case and horizon. (b) Maximum over 2{,}000 directions of $\log p - \log q$
-    for the PINN and the exact density: the PINN turns positive beyond about 20 whitened units.}
-  \label{fig:failure}
-\end{figure*}
 
 % ================================================================================================
 \section{Discussion}
@@ -319,6 +331,7 @@ volatility and self-exciting jumps, where simulation is expensive; time-marching
 assets; and uncertainty estimates that flag extrapolation automatically. Code, configurations and all results are
 available at \url{https://github.com/aditya-siraskar/PINN_FTRE}.
 
+\FloatBarrier   % any figure or table still waiting is placed here, before the references
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
