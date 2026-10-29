@@ -3,7 +3,7 @@
 **VaR and Expected Shortfall from PINN-solved densities under jump-diffusion dynamics:
 from a validated one-dimensional study to multi-asset, amortised and real-data tail risk.**
 
-M.Tech research project · Aditya Siraskar, Utkarsh Sinha, Aditya Sharma · Mentor: Dr. Jaykrishna Joshi
+M.Tech research project · Aditya Siraskar, Utkarsh Sinha, Aditya Sharma
 
 [Thesis draft](thesis/) · [Notebooks](notebooks/) · [Research plan](PLAN.md)
 
