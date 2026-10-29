@@ -330,4 +330,4 @@ and marker, so figures stay readable in grayscale print.
 
 **Aditya Siraskar, Utkarsh Sinha, Aditya Sharma**
 
-M.Tech Research Project, under the guidance of Dr. Jaykrishna Joshi.
+M.Tech Research Project
