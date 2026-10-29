@@ -11,12 +11,17 @@
 \usepackage{multirow}
 \usepackage{caption}
 \usepackage{xcolor}
-\usepackage[round,authoryear]{natbib}
+% IEEE referencing: numbered [1], [2], ... in order of first citation. IEEEtranN is the natbib-compatible
+% IEEEtran style, so \citet{x} still gives "Author et al. [n]" in running text.
+\usepackage[numbers,square,comma,sort&compress]{natbib}
 \usepackage[hidelinks]{hyperref}
 \usepackage[capitalise,noabbrev]{cleveref}
 
 \graphicspath{{../figures/}}
 \captionsetup{font=small,labelfont=bf}
+\captionsetup[figure]{name=Fig.}                 % IEEE: "Fig. 3"
+\crefname{figure}{Fig.}{Figs.}
+\Crefname{figure}{Fig.}{Figs.}
 
 \newcommand{\ES}{\mathrm{ES}}
 \newcommand{\VaR}{\mathrm{VaR}}
@@ -38,7 +43,7 @@
 \input{chapters/results}
 \input{chapters/conclusion}
 
-\bibliographystyle{plainnat}
+\bibliographystyle{IEEEtranN}
 \bibliography{references}
 
 \end{document}
